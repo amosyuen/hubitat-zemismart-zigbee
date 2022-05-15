@@ -1,0 +1,20 @@
+{
+	"packageName": "Zemismart Zigbee Blind",
+	"author": "Amos Yuen",
+	"version": "3.0.0",
+	"minimumHEVersion": "0.0",
+	"dateReleased": "2021-06-18",
+	"releaseNotes" : "* Support new window shade command startPositionChange()\n* Rename stop() to stopPositionChange()\n* Handle ack and set time zigbee messages",
+	"documentationLink": "https://github.com/amosyuen/hubitat-zemismart-zigbee/blob/main/README.md",
+	"communityLink": "https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525",
+	"drivers": [
+		{
+			"id": "f49cbab2-7fe9-450f-a286-05d36b5c43fd",
+			"name": "Zemismart Zigbee Blind",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat-zemismart-zigbee/main/Zemismart%20Zigbee%20Blind.groovy",
+			"required": true,
+			"version": "2.3.0"
+		}
+	]
+}
