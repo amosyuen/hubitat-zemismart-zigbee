@@ -18,6 +18,7 @@
  *
  * VERSION HISTORY
  *                                  
+ * 3.2.0 (2022-05-22) [kkossev]   - code moved to the new repository amosyuen/hubitat-zemismart-zigbee/; code cleanup
  * 3.1.7 (2022-05-14) [kkossev]   - _TZE200_fzo2pocs ZM25TQ Tubular motor test; reversed O/S/C commands bug fix; added new option 'Substitute Open/Close with SetPosition command'
  * 3.1.6 (2022-05-13) [kkossev]   - _TZE200_gubdgai2 defaults fixed; 4 new models fingerprints and defaults added.
  * 3.1.5 (2022-05-02) [kkossev]   - _TZE200_rddyvrci O/C/S commands DP bug fix: added Refresh and Battery capabilities; mixedDP2reporting logic rewritten
@@ -47,15 +48,15 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.1.7 - 2022-05-14 11:18 AM"
+	return "3.2.0 - 2022-05-22 8:21 AM"
 }
 
 private def textCopyright() {
-	return "Copyright ©2021\nAmos Yuen, kkossev, iquix, ShinJjang"
+	return "Copyright ©2021, 2022\nAmos Yuen, kkossev, iquix, ShinJjang"
 }
 
 metadata {
-	definition(name: "ZemiSmart Zigbee Blind", namespace: "amosyuen", author: "Amos Yuen", importUrl: "https://raw.githubusercontent.com/kkossev/hubitat-amosyuen-fork/main/zemismart/Zemismart%20Zigbee%20Blind.groovy", singleThreaded: true ) {
+	definition(name: "ZemiSmart Zigbee Blind", namespace: "amosyuen", author: "Amos Yuen", importUrl: "https://raw.githubusercontent.com/amosyuen/hubitat-zemismart-zigbee/development/Zemismart%20Zigbee%20Blind.groovy", singleThreaded: true ) {
 		capability "Actuator"
 		capability "Configuration"
 		capability "PresenceSensor"
@@ -124,16 +125,14 @@ metadata {
 		input("enableInfoLog", "bool", title: "Enable descriptionText logging", required: true, defaultValue: true)
 		input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
 		input("advancedOptions", "bool", title: "Show Advanced options", description: "These advanced options should have been already set correctly for your device/model when device was Configred", required: true, defaultValue: false)
-
         if (advancedOptions == true) {
     		input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
 	    	input("enableUnexpectedMessageLog", "bool", title: "Log unexpected messages", required: true, defaultValue: false)   
-    		input ("invertPosition", "bool", title: "Invert position reporting", description: "Some devices report the position 0..100 inverted", required: true, defaultValue: true)
+    		input ("invertPosition", "bool", title: "Invert position reporting", description: "Some devices report the position 0..100 inverted", required: true, defaultValue: false)
     		input ("mixedDP2reporting", "bool", title: "Ignore the first Position report",  description: "Some devices report both the Target and the Current positions the same way", required: true, defaultValue: false)
     		input ("substituteOpenClose", "bool", title: "Substitute Open/Close commands with SetPosition",  description: "Turn this option on if your motor does not work in 'lift' mode", required: true, defaultValue: false)
     		input ("positionReportTimeout", "number", title: "Position report timeout, ms", description: "The maximum time between position reports", required: true, defaultValue: POSITION_UPDATE_TIMEOUT)
         }
-        
 	}
 }
 
