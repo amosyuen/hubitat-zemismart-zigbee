@@ -18,6 +18,7 @@
  *
  * VERSION HISTORY
  *                                  
+ * 3.2.1 (2022-05-23) [Amos Yuen] - Fixed bug with parsing speed
  * 3.2.0 (2022-05-22) [kkossev]   - code moved to the new repository amosyuen/hubitat-zemismart-zigbee/; code cleanup
  * 3.1.7 (2022-05-14) [kkossev]   - _TZE200_fzo2pocs ZM25TQ Tubular motor test; reversed O/S/C commands bug fix; added new option 'Substitute Open/Close with SetPosition command'
  * 3.1.6 (2022-05-13) [kkossev]   - _TZE200_gubdgai2 defaults fixed; 4 new models fingerprints and defaults added.
@@ -48,7 +49,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.2.0 - 2022-05-22 8:21 AM"
+	return "3.2.1 - 2022-05-23 7:12 PM"
 }
 
 private def textCopyright() {
@@ -488,7 +489,7 @@ def parseSetDataResponse(descMap) {
             break
 		
 		case DP_ID_SPEED: // 0x69 Motor speed or ZM25TQ Down limit
-            if (isZM25TQ) {
+            if (isZM25TQ()) {
                 logDebug("parse: ZM25TQ Down limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
             }
             else {
