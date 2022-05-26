@@ -18,6 +18,7 @@
  *
  * VERSION HISTORY
  *                                  
+ * 3.2.2 (2022-05-26) [kkossev]   - _TZE200_zah67ekd and _TZE200_wmcdj3aq Open/Close/Stop commands fixes
  * 3.2.1 (2022-05-23) [Amos Yuen] - Fixed bug with parsing speed
  * 3.2.0 (2022-05-22) [kkossev]   - code moved to the new repository amosyuen/hubitat-zemismart-zigbee/; code cleanup
  * 3.1.7 (2022-05-14) [kkossev]   - _TZE200_fzo2pocs ZM25TQ Tubular motor test; reversed O/S/C commands bug fix; added new option 'Substitute Open/Close with SetPosition command'
@@ -49,7 +50,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.2.1 - 2022-05-23 7:12 PM"
+	return "3.2.2 - 2022-05-23 11:40 PM"
 }
 
 private def textCopyright() {
@@ -157,7 +158,7 @@ def isCurtainMotor() {
 // Open - default 0x00
 def getDpCommandOpen() {
     def manufacturer = device.getDataValue("manufacturer")
-    if (manufacturer in ["_TZE200_rddyvrci", "_TZE200_wmcdj3aq", "_TZE200_cowvfni3", "_TYST11_cowvfni3"] ) 
+    if (manufacturer in ["_TZE200_rddyvrci", "_TZE200_cowvfni3", "_TYST11_cowvfni3"] ) 
         return DP_COMMAND_CLOSE //0x02
     else
         return DP_COMMAND_OPEN //0x00
@@ -166,7 +167,7 @@ def getDpCommandOpen() {
 // Stop - default 0x01
 def getDpCommandStop() {
     def manufacturer = device.getDataValue("manufacturer")
-    if (manufacturer in ["_TZE200_nueqqe6k", "_TZE200_zah67ekd"]) 
+    if (manufacturer in ["_TZE200_nueqqe6k"]) 
         return DP_COMMAND_CLOSE //0x02
     else if (manufacturer in ["_TZE200_rddyvrci"]) 
         return DP_COMMAND_OPEN //0x00
@@ -177,9 +178,9 @@ def getDpCommandStop() {
 // Close - default 0x02
 def getDpCommandClose() {
     def manufacturer = device.getDataValue("manufacturer")
-    if (manufacturer in ["_TZE200_nueqqe6k", "_TZE200_rddyvrci", "_TZE200_zah67ekd"])
+    if (manufacturer in ["_TZE200_nueqqe6k", "_TZE200_rddyvrci"])
         return DP_COMMAND_STOP //0x01
-    else if (manufacturer in ["_TZE200_wmcdj3aq", "_TZE200_cowvfni3", "_TYST11_cowvfni3"])
+    else if (manufacturer in ["_TZE200_cowvfni3", "_TYST11_cowvfni3"])
         return DP_COMMAND_OPEN //0x00
     else
         return DP_COMMAND_CLOSE //0x02
@@ -355,6 +356,8 @@ def parse(String description) {
  * [1 byte] (dp type)
  * [2 bytes] (fnCmd length in bytes)
  * [variable bytes] (fnCmd)
+ *
+ * https://developer.tuya.com/en/docs/iot-device-dev/zigbee-curtain-switch-access-standard?id=K9ik6zvra3twv
  */
 def parseSetDataResponse(descMap) {
 	logTrace("parseSetDataResponse: descMap=${descMap}")
