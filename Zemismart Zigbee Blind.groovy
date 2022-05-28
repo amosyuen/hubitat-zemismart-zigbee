@@ -356,6 +356,8 @@ def parse(String description) {
  * [1 byte] (dp type)
  * [2 bytes] (fnCmd length in bytes)
  * [variable bytes] (fnCmd)
+ *
+ * https://developer.tuya.com/en/docs/iot-device-dev/zigbee-curtain-switch-access-standard?id=K9ik6zvra3twv
  */
 def parseSetDataResponse(descMap) {
 	logTrace("parseSetDataResponse: descMap=${descMap}")
