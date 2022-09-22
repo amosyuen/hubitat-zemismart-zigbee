@@ -18,6 +18,7 @@
  *
  * VERSION HISTORY
  *                                  
+ * 3.2.3 (2022-09-22) [kkossev] (dev. branch) _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;
  * 3.2.2 (2022-05-26) [kkossev]   - _TZE200_zah67ekd and _TZE200_wmcdj3aq Open/Close/Stop commands fixes
  * 3.2.1 (2022-05-23) [Amos Yuen] - Fixed bug with parsing speed
  * 3.2.0 (2022-05-22) [kkossev]   - code moved to the new repository amosyuen/hubitat-zemismart-zigbee/; code cleanup
@@ -50,7 +51,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.2.2 - 2022-05-23 11:40 PM"
+	return "3.2.3 - 2022-09-22 8:27 PM"
 }
 
 private def textCopyright() {
@@ -97,7 +98,7 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TYST11_cowvfni3" ,deviceJoinName: "Zemismart Zigbee Curtain Motor"    // !!! close: 0, open: 2, stop: 1 Curtain Motor
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_cf1sl3tj" ,deviceJoinName: "Zemismart Electric Curtain Robot Rechargeable zm85el-2z"    //https://www.zemismart.com/products/zm85el-2z
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_3i3exuay" ,deviceJoinName: "Tuya Zigbee Blind Motor"
-        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_zpzndjez" ,deviceJoinName: "Tuya Zigbee Blind Motor"
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,EF00,0000", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_zpzndjez" ,deviceJoinName: "Zignito Zigbee Tubular Roller Blind Motor"    // https://www.ajaxonline.co.uk/product/zignito-zigbee-roller-blind-motor/
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_nhyj64w2" ,deviceJoinName: "Tuya Zigbee Blind Motor"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Zemismart ZM25TQ Tubular motor"    // inverted reporting; default O/C/S
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_4vobcgd3" ,deviceJoinName: "Zemismart Zigbee Tubular motor"    // onClusters may be wrong
@@ -633,7 +634,7 @@ private updateWindowShadeArrived(position=null) {
         position = device.currentValue("position")
     }
 	logDebug("updateWindowShadeArrived: position=${position}")
-	if (position < 0 || position > 100) {
+	if (position == null || position < 0 || position > 100) {
 		log.warn("updateWindowShadeArrived: Need to setup limits on device")
 		sendEvent(name: "windowShade", value: "unknown")
         logInfo("${device.displayName} windowShade is unknown")
@@ -726,7 +727,7 @@ def setLevel( level, duration = null )
 }
 
 def setPosition(position) {
-	if (position < 0 || position > 100) {
+	if (position == null || position < 0 || position > 100) {
 		throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
 	}
     state.target = position
