@@ -18,6 +18,8 @@
  *
  * VERSION HISTORY
  *                                  
+ * 3.3.0 (2022-12-02) [kkossev]   - (TEST branch) - TS130F Curtain Modules support tests
+ *
  * 3.2.4 (2022-12-02) [kkossev]   - (dev.branch) - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
  * 3.2.3 (2022-09-22) [kkossev]   - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;
  * 3.2.2 (2022-05-26) [kkossev]   - _TZE200_zah67ekd and _TZE200_wmcdj3aq Open/Close/Stop commands fixes
