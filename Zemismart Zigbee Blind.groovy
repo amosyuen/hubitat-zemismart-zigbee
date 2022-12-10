@@ -18,7 +18,8 @@
  *
  * VERSION HISTORY
  *                                  
- * 3.2.4 (2022-12-02) [kkossev]   - (dev.branch) - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
+ * 3.2.5 (2022-12-10) [kkossev]   - (dev.branch) - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; 
+ * 3.2.4 (2022-12-02) [kkossev]   - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
  * 3.2.3 (2022-09-22) [kkossev]   - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;
  * 3.2.2 (2022-05-26) [kkossev]   - _TZE200_zah67ekd and _TZE200_wmcdj3aq Open/Close/Stop commands fixes
  * 3.2.1 (2022-05-23) [Amos Yuen] - Fixed bug with parsing speed
@@ -52,7 +53,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.2.4 - 2022-12-02 8:21 AM"
+	return "3.2.5 - 2022-12-10 4:42 PM"
 }
 
 private def textCopyright() {
@@ -101,7 +102,8 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_3i3exuay" ,deviceJoinName: "Tuya Zigbee Blind Motor"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,EF00,0000", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_zpzndjez" ,deviceJoinName: "Zignito Zigbee Tubular Roller Blind Motor"    // https://www.ajaxonline.co.uk/product/zignito-zigbee-roller-blind-motor/
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_nhyj64w2" ,deviceJoinName: "Tuya Zigbee Blind Motor"
-        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Zemismart ZM25TQ Tubular motor"    // inverted reporting; default O/C/S
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Zemismart ZM25TQ Tubular motor"    // app. version 52 //inverted reporting; default O/C/S
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Motorized Window Opener"           // app. version 53 //https://www.aliexpress.com/item/1005004251482469.html
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_4vobcgd3" ,deviceJoinName: "Zemismart Zigbee Tubular motor"    // onClusters may be wrong
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_5zbp6j0u" ,deviceJoinName: "Tuya Zigbee Curtain Motor"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_rmymn92d" ,deviceJoinName: "Tuya Zigbee Curtain Motor"        // inverted reporting
@@ -110,6 +112,7 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_fdtjuw7u" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_r0jdjrvi" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_bqcqqjpb" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_udank5zs" ,deviceJoinName: "Motorized Window Opener"           // similar to _TZE200_fzo2pocs
         // 
         // defaults are :  open: 0, stop: 1,  close: 2   
 	}
@@ -204,15 +207,15 @@ def isMixedDP2reporting() {
 def isInvertedPositionReporting() {
     def manufacturer = device.getDataValue("manufacturer")
     if (manufacturer in ["_TZE200_xuzcvlku", "_TZE200_nueqqe6k", "_TZE200_5sbebbzs", "_TZE200_gubdgai2", "_TZE200_fzo2pocs", "_TZE200_wmcdj3aq", "_TZE200_nogaemzt", "_TZE200_xaabybja", "_TZE200_yenbr4om", "_TZE200_zpzndjez", 
-                         "_TZE200_zuz7f94z", "_TZE200_rmymn92d", "_TZE200_7eue9vhc"])
+                         "_TZE200_zuz7f94z", "_TZE200_rmymn92d", "_TZE200_7eue9vhc", "_TZE200_udank5zs"])
         return true
     else
         return false
 }
 
-def isZM25TQ() { return device.getDataValue("manufacturer") in ["_TZE200_fzo2pocs"] }
+def isZM25TQ() { return device.getDataValue("manufacturer") in ["_TZE200_fzo2pocs", "_TZE200_udank5zs"] }
 
-def isOpenCloseSubstituted() { return device.getDataValue("manufacturer") in ["_TZE200_rddyvrci", "_TZE200_fzo2pocs"] }
+def isOpenCloseSubstituted() { return device.getDataValue("manufacturer") in ["_TZE200_rddyvrci", "_TZE200_fzo2pocs", "_TZE200_udank5zs"] }
 
 def getPositionReportTimeout() {
     return POSITION_UPDATE_TIMEOUT
@@ -241,6 +244,7 @@ def configure(boolean fullInit = true) {
     state.isTargetRcvd = false
 
 	sendEvent(name: "numberOfButtons", value: 5)
+    unschedule()    // added 2022/12/10
 
 	// Must run async otherwise, one will block the other
 	runIn(1, setMode)
@@ -537,7 +541,7 @@ def processTuyaSetTime() {
 }
 
 private ignorePositionReport(position) {
-	def lastPosition = device.currentValue("position")
+	def lastPosition = device.currentValue("position") ?: "undefined"
 	logDebug("ignorePositionReport: position=${position}, lastPosition=${lastPosition}")
 	if (lastPosition == "undefined" || isWithinOne(position)) {
 		logTrace("Ignore invalid reports")
@@ -547,7 +551,7 @@ private ignorePositionReport(position) {
 }
 
 private isWithinOne(position) {
-	def lastPosition = device.currentValue("position")
+	def lastPosition = device.currentValue("position") ?: "undefined"
 	if (lastPosition != "undefined" && Math.abs(position - lastPosition) <= 1) {
     	logTrace("isWithinOne:true (position=${position}, lastPosition=${lastPosition})")
 		return true
@@ -609,7 +613,7 @@ private updateBattery(battery) {
 }
 
 private updateWindowShadeMoving(position) {
-	def lastPosition = device.currentValue("position")
+	def lastPosition = device.currentValue("position") ?: 0
     logDebug("updateWindowShadeMoving: position=${position} (lastPosition=${lastPosition}), target=${state.target}")
 
 	if (lastPosition < position) {
@@ -621,7 +625,7 @@ private updateWindowShadeMoving(position) {
 
 private updateWindowShadeOpening() {
 	logTrace("updateWindowShadeOpening")
-    if (device.currentValue("windowShade") != "opening") {
+    if ((device.currentValue("windowShade") ?: "undefined") != "opening") {
 	    sendEvent(name:"windowShade", value: "opening")
         logInfo("${device.displayName} is opening")
     }
@@ -629,7 +633,7 @@ private updateWindowShadeOpening() {
 
 private updateWindowShadeClosing() {
 	logTrace("updateWindowShadeClosing")
-    if (device.currentValue("windowShade") != "closing") {
+    if ((device.currentValue("windowShade") ?: "undefined") != "closing") {
     	sendEvent(name:"windowShade", value: "closing")
         logInfo("${device.displayName} is closing")
     }
