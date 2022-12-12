@@ -1,10 +1,10 @@
 {
 	"packageName": "Zemismart Zigbee Blind",
 	"author": "Amos Yuen",
-	"version": "3.2.4",
+	"version": "3.2.5",
 	"minimumHEVersion": "2.2.7",
 	"dateReleased": "2022-12-08",
-	"releaseNotes" : "3.2.4 (2022-12-02) - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb\n3.2.3 (2022-09-22) - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;\n3.2.2 (2022-05-26) - new models support; major code changes\n3.0.0 (2021-06-18) * Support new window shade command startPositionChange(); Rename stop() to stopPositionChange(); Handle ack and set time zigbee messages",
+	"releaseNotes" : "3.2.5 (2022-12-12) - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; unscheduling of old periodic tasks; _TZE200_7eue9vhc not inverted\n3.2.4 (2022-12-02) - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb\n3.2.3 (2022-09-22) - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;\n3.2.2 (2022-05-26) - new models support; major code changes\n3.0.0 (2021-06-18) * Support new window shade command startPositionChange(); Rename stop() to stopPositionChange(); Handle ack and set time zigbee messages",
 	"documentationLink": "https://github.com/amosyuen/hubitat-zemismart-zigbee/blob/main/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525",
 	"drivers": [
