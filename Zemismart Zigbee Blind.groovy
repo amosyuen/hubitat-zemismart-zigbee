@@ -18,7 +18,8 @@
  *
  * VERSION HISTORY
  *                                  
- * 3.2.5 (2022-12-10) [kkossev]   - (dev.branch) - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; 
+ *
+ * 3.2.5 (2022-12-12) [kkossev]   - (dev.branch) - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; unscheduling of old periodic tasks; _TZE200_7eue9vhc not inverted
  * 3.2.4 (2022-12-02) [kkossev]   - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
  * 3.2.3 (2022-09-22) [kkossev]   - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;
  * 3.2.2 (2022-05-26) [kkossev]   - _TZE200_zah67ekd and _TZE200_wmcdj3aq Open/Close/Stop commands fixes
@@ -53,7 +54,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.2.5 - 2022-12-10 4:42 PM"
+	return "3.2.5 - 2022-12-12 7:14 AM"
 }
 
 private def textCopyright() {
@@ -207,7 +208,7 @@ def isMixedDP2reporting() {
 def isInvertedPositionReporting() {
     def manufacturer = device.getDataValue("manufacturer")
     if (manufacturer in ["_TZE200_xuzcvlku", "_TZE200_nueqqe6k", "_TZE200_5sbebbzs", "_TZE200_gubdgai2", "_TZE200_fzo2pocs", "_TZE200_wmcdj3aq", "_TZE200_nogaemzt", "_TZE200_xaabybja", "_TZE200_yenbr4om", "_TZE200_zpzndjez", 
-                         "_TZE200_zuz7f94z", "_TZE200_rmymn92d", "_TZE200_7eue9vhc", "_TZE200_udank5zs"])
+                         "_TZE200_zuz7f94z", "_TZE200_rmymn92d", "_TZE200_udank5zs"])
         return true
     else
         return false
