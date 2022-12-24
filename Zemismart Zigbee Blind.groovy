@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-24 8:46 AM"
+	return "3.3.0 (test branch) - 2022-12-24 11:56 AM"
 }
 
 private def textCopyright() {
@@ -896,28 +896,48 @@ private logInfo(text) {
 	if (!enableInfoLog) {
 		return
 	}
-	log.info(text)
+	log.info "${device.displayName} " + text
 }
 
 private logDebug(text) {
 	if (!enableDebugLog) {
 		return
 	}
-	log.debug(text)
+	log.debug "${device.displayName} " + text
 }
 
 private logTrace(text) {
 	if (!enableTraceLog) {
 		return
 	}
-	log.trace(text)
+	log.trace"${device.displayName} " + text
 }
+
+private logWarn(text) {logUnexpectedMessage(text)}
 
 private logUnexpectedMessage(text) {
 	if (!enableUnexpectedMessageLog) {
 		return
 	}
-	log.warn(text)
+	log.warn "${device.displayName} " + text
+}
+
+Integer safeToInt(val, Integer defaultVal=0) {
+	return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
+}
+
+Double safeToDouble(val, Double defaultVal=0.0) {
+	return "${val}"?.isDouble() ? "${val}".toDouble() : defaultVal
+}
+
+void sendZigbeeCommands(ArrayList<String> cmd) {
+    logDebug "<b>sendZigbeeCommands</b> (cmd=$cmd)"
+    hubitat.device.HubMultiAction allActions = new hubitat.device.HubMultiAction()
+    cmd.each {
+            allActions.add(new hubitat.device.HubAction(it, hubitat.device.Protocol.ZIGBEE))
+            if (state.txCounter != null) state.txCounter = state.txCounter + 1
+    }
+    sendHubCommand(allActions)
 }
 
 def setNotImplemented( val=null ) {
@@ -926,11 +946,26 @@ def setNotImplemented( val=null ) {
         return []
     }
 }
-def setMmoesCalibrationTime( val ) {
+
+def setMoesCalibrationTime( val ) {
     if (true) { 
         int calibrationTime = val * 10 
         logInfo "changing moesCalibrationTime to : ${calibrationTime} seconds (raw ${val})"                
-        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [:], delay=200)
+        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [:], delay=200) + zigbee.readAttribute(0x0102, moesCalibrationTime, [:], delay=200)
+    }
+}
+
+def setMoesCalibrationOn( val=null  ) {
+    if (true) { 
+        logInfo "setting setMoesCalibration<b>On</b>"                
+        return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 1, [:], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [:], delay=200)
+    }
+}
+
+def setMoesCalibrationOff( val=null  ) {
+    if (true) { 
+        logInfo "setting setMoesCalibration<b>Off</b>"                
+        return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 0, [:], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [:], delay=200)
     }
 }
 
@@ -938,39 +973,47 @@ def setMmoesCalibrationTime( val ) {
 
 @Field static final Map settableParsMap = [
     "moesCalibrationTime": [ min: 1,   scale: 0, max: 99, step: 1,   type: 'number',   defaultValue: 7   , function: 'setMoesCalibrationTime'],
-    "moesCalibrationOn"  : [ min: 0.0, scale: 0, max: 120.0, step: 0.1, type: 'decimal',  defaultValue: 0.2 , function: 'setNotImplemented'],
-    "moesCalibrationOff" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
-    "ZM85setLowerLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
-    "ZM85setUpperLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
-    "ZM85removeUpperLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
-    "ZM85removeLowerLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
-    "ZM85power" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+    "moesCalibrationOn"  : [ type: 'none', function: 'setMoesCalibrationOn'],
+    "moesCalibrationOff" : [ type: 'none', function: 'setMoesCalibrationOff'],
+    "ZM85setLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
+    "ZM85setUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
+    "ZM85removeUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
+    "ZM85removeLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
+    "ZM85power" : [ type: 'none', function: 'setNotImplemented']
 ]
 
 def calibrate( par=null, val=null )
 {
     log.warn "calibrate ${par} ${val}"
     ArrayList<String> cmds = []
-    def value
+    def value = null
     Boolean validated = false
     if (par == null || !(par in (settableParsMap.keySet() as List))) {
         logWarn "calibrate: parameter <b>${par}</b> must be one of these : ${settableParsMap.keySet() as List}"
         return
     }
-    value = settableParsMap[par]?.type == "number" ? safeToInt(val, -1) : safeToDouble(val, -1.0)
-    if (value >= settableParsMap[par]?.min && value <= settableParsMap[par]?.max) validated = true
-    if (validated == false) {
-        log.warn "calibrate: parameter <b>par</b> value <b>${val}</b> must be within ${settableParsMap[par]?.min} and  ${settableParsMap[par]?.max} "
-        return
+    if (settableParsMap[par]?.type != null && settableParsMap[par]?.type != "none" ) {
+        value = settableParsMap[par]?.type == "number" ? safeToInt(val, -1) : safeToDouble(val, -1.0)
+        if (value >= settableParsMap[par]?.min && value <= settableParsMap[par]?.max) validated = true
+        if (validated == false) {
+            log.warn "calibrate: parameter <b>par</b> value <b>${val}</b> must be within ${settableParsMap[par]?.min} and  ${settableParsMap[par]?.max} "
+            return
+        }
     }
     //
     def func
     try {
         func = settableParsMap[par]?.function
-        def type = settableParsMap[par]?.type
-        device.updateSetting("$par", [value:value, type:type])
-        cmds = "$func"(value)
+        //def type = settableParsMap[par]?.type
+        //device.updateSetting("$par", [value:value, type:type])
+        if (value != null) {
+            cmds = "$func"(value)
+        }
+        else {
+            cmds = "$func"()
+        }
     }
+    
     catch (e) {
         logWarn "Exception caught while processing <b>$func</b>(<b>$val</b>)"
         return
