@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-24 11:56 AM"
+	return "3.3.0 (test branch) - 2022-12-24 8:43 PM"
 }
 
 private def textCopyright() {
@@ -261,19 +261,6 @@ def configure(boolean fullInit = true) {
 	runIn(1, setMode)
 	runIn(2, setDirection)
 
-	if (maxClosedPosition < 0 || maxClosedPosition > 100) {
-		throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
-			+ " 0 and 100 inclusive.")
-	}
-	if (minOpenPosition < 0 || minOpenPosition > 100) {
-		throw new Exception("Invalid minOpenPosition \"${minOpenPosition}\" should be between 0"
-			+ " and 100 inclusive.")
-	}
-	if (maxClosedPosition >= minOpenPosition) {
-		throw new Exception("maxClosedPosition \"${minOpenPosition}\" must be less than"
-			+ " minOpenPosition \"${minOpenPosition}\".")
-	}
-    
     if (settings.enableInfoLog == null || fullInit == true) device.updateSetting("enableInfoLog", [value: true, type: "bool"]) 
     if (settings.advancedOptions == null || fullInit == true) device.updateSetting("advancedOptions", [value: false, type: "bool"]) 
     
@@ -282,21 +269,41 @@ def configure(boolean fullInit = true) {
     if (settings.invertPosition == null || fullInit == true) device.updateSetting("invertPosition", [value: isInvertedPositionReporting(), type: "bool"]) 
     if (settings.substituteOpenClose == null || fullInit == true) device.updateSetting("substituteOpenClose", [value: isOpenCloseSubstituted(), type: "bool"]) 
     if (settings.positionReportTimeout == null || fullInit == true) device.updateSetting("positionReportTimeout", [value: getPositionReportTimeout(), type: "number"]) 
+    if (settings.maxClosedPosition == null || fullInit == true) device.updateSetting("maxClosedPosition", [value: 1, type: "number"]) 
+    if (settings.minOpenPosition == null || fullInit == true) device.updateSetting("minOpenPosition", [value: 99, type: "number"]) 
+    
+	if (settings?.maxClosedPosition < 0 || settings?.maxClosedPosition > 100) {
+		throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
+			+ " 0 and 100 inclusive.")
+	}
+	if (settings?.minOpenPosition < 0 || settings?.minOpenPosition > 100) {
+		throw new Exception("Invalid minOpenPosition \"${minOpenPosition}\" should be between 0"
+			+ " and 100 inclusive.")
+	}
+	if (settings?.maxClosedPosition >= settings?.minOpenPosition) {
+		throw new Exception("maxClosedPosition \"${minOpenPosition}\" must be less than"
+			+ " minOpenPosition \"${minOpenPosition}\".")
+	}
+    
     
     logInfo("${device.displayName} configured : model=${device.getDataValue('model')} manufacturer=${device.getDataValue('manufacturer')}")
     logDebug(" fullInit=${fullInit} invertPosition=${settings.invertPosition}, positionReportTimeout=${positionReportTimeout}, mixedDP2reporting=${settings.mixedDP2reporting}, substituteOpenClose=${settings.substituteOpenClose}")
 }
 
 def setDirection() {
-	def directionValue = direction as int
-	logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
-	sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, directionValue, 2)
+    if (settings?.direction != null) {
+	    def directionValue = direction as int
+	    logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
+	    sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, directionValue, 2)
+    }
 }
 
 def setMode() {
-	def modeValue = mode as int
-	logDebug("setMode: modeText=${MODE_MAP[modeValue].value}, modeValue=${modeValue}")
-	sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
+    if (settings?.mode != null) {
+	    def modeValue = mode as int
+	    logDebug("setMode: modeText=${MODE_MAP[modeValue].value}, modeValue=${modeValue}")
+	    sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
+    }
 }
 
 //
@@ -339,7 +346,7 @@ def parse(String description) {
 	updatePresence(true)
 	Map descMap = zigbee.parseDescriptionAsMap(description)
 	if (descMap.clusterInt != CLUSTER_TUYA) {
-		logUnexpectedMessage("parse: Not a Tuya Message descMap=${descMap}")
+        parseNonTuyaMessage( descMap )
 		return null
 	}
 	def command = zigbee.convertHexToInt(descMap.command)
@@ -369,6 +376,42 @@ def parse(String description) {
 			logUnexpectedMessage("parse: Unhandled command=${command} descMap=${descMap}")
 			break
 	}
+}
+
+def parseNonTuyaMessage( descMap ) {
+    if (descMap == null)
+        return
+    if (descMap.cluster == "0400" && descMap.attrId == "0000") {
+        def rawLux = Integer.parseInt(descMap.value,16)
+        illuminanceEvent( rawLux )
+    }
+    else if (descMap?.clusterId == "0102" || descMap?.cluster == "0102") {
+        // windowCovering standard cluster
+        logDebug "windowCovering standard cluster descMap=${descMap}"
+        if (descMap?.command == "01" || descMap?.command == "0A") {     //read attribute response or reportResponse
+            if (descMap?.data != null &&  descMap?.data[2] == "86") {
+                logWarn "read attribute response: unsupported cluster ${descMap?.clusterId} attribute ${descMap.data[1] + descMap.data[0]} (status ${descMap.data[2]})"
+            }
+            else {
+                logInfo "read attribute response: cluster ${descMap?.cluster} attribute ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+            }
+        }
+        else if (descMap?.command == "04") {    //write attribute response
+            if (descMap.data[0] == "86") {
+                logWarn "writeAttributeResponse: unsupported cluster ${descMap?.clusterId} attribute ${descMap.data[2] + descMap.data[1]} (status ${descMap.data[0]})"
+            }
+            else {
+                logInfo "writeAttributeResponse: cluster ${descMap?.clusterId} <b>OK</b> (data : ${descMap.data})"
+            }
+        }
+        else {
+            logWarn "windowCovering unprocessed command ${descMap?.command}"
+        }
+    }
+    else {
+        logUnexpectedMessage("parse: Not a Tuya Message descMap=${descMap}")
+    }
+    
 }
 
 /*
@@ -947,11 +990,35 @@ def setNotImplemented( val=null ) {
     }
 }
 
+//---------------------
+def setTS130FCalibrationTime( val ) {
+    if (true) { 
+        int calibrationTime = val * 10 
+        logInfo "changing moesCalibrationTime to : ${val} seconds (raw ${calibrationTime})"                
+        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, moesCalibrationTime, [destEndpoint:0x01], delay=200)
+    }
+}
+
+def setTS130FCalibrationOn( val=null  ) {
+    if (true) { 
+        logInfo "setting setMoesCalibration<b>On</b>"                
+        return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 1, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [destEndpoint:0x01], delay=200)
+    }
+}
+
+def setTS130FCalibrationOff( val=null  ) {
+    if (true) { 
+        logInfo "setting setMoesCalibration<b>Off</b>"                
+        return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 0, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [destEndpoint:0x01], delay=200)
+    }
+}
+//---------------------
+
 def setMoesCalibrationTime( val ) {
     if (true) { 
         int calibrationTime = val * 10 
-        logInfo "changing moesCalibrationTime to : ${calibrationTime} seconds (raw ${val})"                
-        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [:], delay=200) + zigbee.readAttribute(0x0102, moesCalibrationTime, [:], delay=200)
+        logInfo "changing moesCalibrationTime to : ${val} seconds (raw ${calibrationTime})"                
+        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, moesCalibrationTime, [destEndpoint:0x01], delay=200)
     }
 }
 
@@ -970,11 +1037,22 @@ def setMoesCalibrationOff( val=null  ) {
 }
 
 //@Field final int moesCalibrationTime = 0xf003        //   type: uint16
+/*
+    moesCoverCalibration: 3,          // 'ON' ? 0 : 1;
+    moesCoverBacklight: 7,            // true : false
+    moesCoverMotorReversal: 8,        // 'ON' ? 1 : 0;
+
+*/
 
 @Field static final Map settableParsMap = [
+    "TS130F Calibration Time": [ min: 1,   scale: 0, max: 99, step: 1,   type: 'number',   defaultValue: 7   , function: 'setTS130FCalibrationTime'],
+    "TS130F Calibration On"  : [ type: 'none', function: 'setTS130FCalibrationOn'],
+    "TS130F Calibration Off" : [ type: 'none', function: 'setTS130FCalibrationOff'],
+    
     "moesCalibrationTime": [ min: 1,   scale: 0, max: 99, step: 1,   type: 'number',   defaultValue: 7   , function: 'setMoesCalibrationTime'],
     "moesCalibrationOn"  : [ type: 'none', function: 'setMoesCalibrationOn'],
     "moesCalibrationOff" : [ type: 'none', function: 'setMoesCalibrationOff'],
+    
     "ZM85setLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
     "ZM85setUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
     "ZM85removeUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
@@ -984,7 +1062,7 @@ def setMoesCalibrationOff( val=null  ) {
 
 def calibrate( par=null, val=null )
 {
-    log.warn "calibrate ${par} ${val}"
+    logDebug "calibrate ${par} ${val}"
     ArrayList<String> cmds = []
     def value = null
     Boolean validated = false
@@ -1019,7 +1097,7 @@ def calibrate( par=null, val=null )
         return
     }
 
-    logWarn "calibrate: executed <b>$func</b>(<b>$val</b>)"
+    logDebug "calibrate: executed <b>$func</b>(<b>$val</b>)"
     sendZigbeeCommands( cmds )
 }
 
