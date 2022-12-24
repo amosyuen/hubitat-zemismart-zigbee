@@ -18,9 +18,10 @@
  *
  * VERSION HISTORY
  *                                  
- * 3.3.0 (2022-12-02) [kkossev]   - (TEST branch) - TS130F Curtain Modules support tests
+ * 3.3.0 (2022-12-24) [kkossev]   - (TEST branch) - TS130F Curtain Modules support tests;  _TZE200_nhyj64w2 Touch Curtain Switch - calibraion (test); 
  *
- * 3.2.4 (2022-12-02) [kkossev]   - (dev.branch) - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
+ * 3.2.5 (2022-12-12) [kkossev]   - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; unscheduling of old periodic tasks; _TZE200_7eue9vhc not inverted
+ * 3.2.4 (2022-12-02) [kkossev]   - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
  * 3.2.3 (2022-09-22) [kkossev]   - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;
  * 3.2.2 (2022-05-26) [kkossev]   - _TZE200_zah67ekd and _TZE200_wmcdj3aq Open/Close/Stop commands fixes
  * 3.2.1 (2022-05-23) [Amos Yuen] - Fixed bug with parsing speed
@@ -54,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.2.4 - 2022-12-02 8:21 AM"
+	return "3.3.0 (test branch) - 2022-12-24 8:46 AM"
 }
 
 private def textCopyright() {
@@ -78,6 +79,10 @@ metadata {
 		command "stepClose", [[name: "step", type: "NUMBER", description: "Amount to change position towards close. Defaults to defaultStepAmount if not set."]]
 		command "stepOpen", [[name: "step",	type: "NUMBER",	description: "Amount to change position towards open. Defaults to defaultStepAmount if not set."]]
 		command "setSpeed", [[name: "speed*", type: "NUMBER", description: "Motor speed (0 to 100). Values below 5 may not work."]]
+        command "calibrate", [
+                [name:"cmd", type: "ENUM", description: "command", constraints: (settableParsMap.keySet() as List)],
+                [name:"val", type: "STRING", description: "preference parameter value", constraints: ["STRING"]]
+        ]        
 
 		fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"mcdj3aq",manufacturer:"_TYST11_wmcdj3aq", deviceJoinName: "Zemismart Zigbee Blind"             // direction is reversed ? // Stop and Close inverted or not?
 		fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"owvfni3",manufacturer:"_TYST11_cowvfr",   deviceJoinName: "Zemismart Zigbee Curtain Motor"
@@ -102,8 +107,9 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_cf1sl3tj" ,deviceJoinName: "Zemismart Electric Curtain Robot Rechargeable zm85el-2z"    //https://www.zemismart.com/products/zm85el-2z
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_3i3exuay" ,deviceJoinName: "Tuya Zigbee Blind Motor"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,EF00,0000", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_zpzndjez" ,deviceJoinName: "Zignito Zigbee Tubular Roller Blind Motor"    // https://www.ajaxonline.co.uk/product/zignito-zigbee-roller-blind-motor/
-        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_nhyj64w2" ,deviceJoinName: "Tuya Zigbee Blind Motor"
-        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Zemismart ZM25TQ Tubular motor"    // inverted reporting; default O/C/S
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_nhyj64w2" ,deviceJoinName: "Touch Curtain Switch RF"           // model: 'ZTS-EUR-C' https://community.hubitat.com/t/moes-curtain-switch/102691/16?u=kkossev 
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Zemismart ZM25TQ Tubular motor"    // app. version 52 //inverted reporting; default O/C/S
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Motorized Window Opener"           // app. version 53 //https://www.aliexpress.com/item/1005004251482469.html
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_4vobcgd3" ,deviceJoinName: "Zemismart Zigbee Tubular motor"    // onClusters may be wrong
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_5zbp6j0u" ,deviceJoinName: "Tuya Zigbee Curtain Motor"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_rmymn92d" ,deviceJoinName: "Tuya Zigbee Curtain Motor"        // inverted reporting
@@ -112,6 +118,7 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_fdtjuw7u" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_r0jdjrvi" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_bqcqqjpb" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_udank5zs" ,deviceJoinName: "Motorized Window Opener"           // similar to _TZE200_fzo2pocs
         // 
         // defaults are :  open: 0, stop: 1,  close: 2   
 	}
@@ -157,6 +164,11 @@ metadata {
 @Field final int CHECK_FOR_RESPONSE_INTERVAL_SECONDS = 60
 @Field final int HEARTBEAT_INTERVAL_SECONDS = 4000 // a little more than 1 hour
 @Field final int POSITION_UPDATE_TIMEOUT = 2500    //  in milliseconds 
+
+@Field final int tuyaMovingState =     0xf000        //   type: enum8
+@Field final int tuyaCalibration =     0xf001        //   type: enum8
+@Field final int tuyaMotorReversal =   0xf002        //   type: enum8
+@Field final int moesCalibrationTime = 0xf003        //   type: uint16
 
 
 def isCurtainMotor() {
@@ -206,15 +218,15 @@ def isMixedDP2reporting() {
 def isInvertedPositionReporting() {
     def manufacturer = device.getDataValue("manufacturer")
     if (manufacturer in ["_TZE200_xuzcvlku", "_TZE200_nueqqe6k", "_TZE200_5sbebbzs", "_TZE200_gubdgai2", "_TZE200_fzo2pocs", "_TZE200_wmcdj3aq", "_TZE200_nogaemzt", "_TZE200_xaabybja", "_TZE200_yenbr4om", "_TZE200_zpzndjez", 
-                         "_TZE200_zuz7f94z", "_TZE200_rmymn92d", "_TZE200_7eue9vhc"])
+                         "_TZE200_zuz7f94z", "_TZE200_rmymn92d", "_TZE200_udank5zs"])
         return true
     else
         return false
 }
 
-def isZM25TQ() { return device.getDataValue("manufacturer") in ["_TZE200_fzo2pocs"] }
+def isZM25TQ() { return device.getDataValue("manufacturer") in ["_TZE200_fzo2pocs", "_TZE200_udank5zs"] }
 
-def isOpenCloseSubstituted() { return device.getDataValue("manufacturer") in ["_TZE200_rddyvrci", "_TZE200_fzo2pocs"] }
+def isOpenCloseSubstituted() { return device.getDataValue("manufacturer") in ["_TZE200_rddyvrci", "_TZE200_fzo2pocs", "_TZE200_udank5zs"] }
 
 def getPositionReportTimeout() {
     return POSITION_UPDATE_TIMEOUT
@@ -243,6 +255,7 @@ def configure(boolean fullInit = true) {
     state.isTargetRcvd = false
 
 	sendEvent(name: "numberOfButtons", value: 5)
+    unschedule()    // added 2022/12/10
 
 	// Must run async otherwise, one will block the other
 	runIn(1, setMode)
@@ -539,7 +552,7 @@ def processTuyaSetTime() {
 }
 
 private ignorePositionReport(position) {
-	def lastPosition = device.currentValue("position")
+	def lastPosition = device.currentValue("position") ?: "undefined"
 	logDebug("ignorePositionReport: position=${position}, lastPosition=${lastPosition}")
 	if (lastPosition == "undefined" || isWithinOne(position)) {
 		logTrace("Ignore invalid reports")
@@ -549,7 +562,7 @@ private ignorePositionReport(position) {
 }
 
 private isWithinOne(position) {
-	def lastPosition = device.currentValue("position")
+	def lastPosition = device.currentValue("position") ?: "undefined"
 	if (lastPosition != "undefined" && Math.abs(position - lastPosition) <= 1) {
     	logTrace("isWithinOne:true (position=${position}, lastPosition=${lastPosition})")
 		return true
@@ -611,7 +624,7 @@ private updateBattery(battery) {
 }
 
 private updateWindowShadeMoving(position) {
-	def lastPosition = device.currentValue("position")
+	def lastPosition = device.currentValue("position") ?: 0
     logDebug("updateWindowShadeMoving: position=${position} (lastPosition=${lastPosition}), target=${state.target}")
 
 	if (lastPosition < position) {
@@ -623,7 +636,7 @@ private updateWindowShadeMoving(position) {
 
 private updateWindowShadeOpening() {
 	logTrace("updateWindowShadeOpening")
-    if (device.currentValue("windowShade") != "opening") {
+    if ((device.currentValue("windowShade") ?: "undefined") != "opening") {
 	    sendEvent(name:"windowShade", value: "opening")
         logInfo("${device.displayName} is opening")
     }
@@ -631,7 +644,7 @@ private updateWindowShadeOpening() {
 
 private updateWindowShadeClosing() {
 	logTrace("updateWindowShadeClosing")
-    if (device.currentValue("windowShade") != "closing") {
+    if ((device.currentValue("windowShade") ?: "undefined") != "closing") {
     	sendEvent(name:"windowShade", value: "closing")
         logInfo("${device.displayName} is closing")
     }
@@ -906,3 +919,64 @@ private logUnexpectedMessage(text) {
 	}
 	log.warn(text)
 }
+
+def setNotImplemented( val=null ) {
+    if (true) { 
+        logWarn "not implemented!"                
+        return []
+    }
+}
+def setMmoesCalibrationTime( val ) {
+    if (true) { 
+        int calibrationTime = val * 10 
+        logInfo "changing moesCalibrationTime to : ${calibrationTime} seconds (raw ${val})"                
+        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [:], delay=200)
+    }
+}
+
+//@Field final int moesCalibrationTime = 0xf003        //   type: uint16
+
+@Field static final Map settableParsMap = [
+    "moesCalibrationTime": [ min: 1,   scale: 0, max: 99, step: 1,   type: 'number',   defaultValue: 7   , function: 'setMoesCalibrationTime'],
+    "moesCalibrationOn"  : [ min: 0.0, scale: 0, max: 120.0, step: 0.1, type: 'decimal',  defaultValue: 0.2 , function: 'setNotImplemented'],
+    "moesCalibrationOff" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+    "ZM85setLowerLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+    "ZM85setUpperLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+    "ZM85removeUpperLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+    "ZM85removeLowerLimit" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+    "ZM85power" : [ min: 1.0, scale: 0, max: 500.0, step: 1.0, type: 'decimal',  defaultValue: 60.0, function: 'setNotImplemented'],
+]
+
+def calibrate( par=null, val=null )
+{
+    log.warn "calibrate ${par} ${val}"
+    ArrayList<String> cmds = []
+    def value
+    Boolean validated = false
+    if (par == null || !(par in (settableParsMap.keySet() as List))) {
+        logWarn "calibrate: parameter <b>${par}</b> must be one of these : ${settableParsMap.keySet() as List}"
+        return
+    }
+    value = settableParsMap[par]?.type == "number" ? safeToInt(val, -1) : safeToDouble(val, -1.0)
+    if (value >= settableParsMap[par]?.min && value <= settableParsMap[par]?.max) validated = true
+    if (validated == false) {
+        log.warn "calibrate: parameter <b>par</b> value <b>${val}</b> must be within ${settableParsMap[par]?.min} and  ${settableParsMap[par]?.max} "
+        return
+    }
+    //
+    def func
+    try {
+        func = settableParsMap[par]?.function
+        def type = settableParsMap[par]?.type
+        device.updateSetting("$par", [value:value, type:type])
+        cmds = "$func"(value)
+    }
+    catch (e) {
+        logWarn "Exception caught while processing <b>$func</b>(<b>$val</b>)"
+        return
+    }
+
+    logWarn "calibrate: executed <b>$func</b>(<b>$val</b>)"
+    sendZigbeeCommands( cmds )
+}
+
