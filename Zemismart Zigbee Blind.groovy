@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-24 9:45 PM"
+	return "3.3.0 (test branch) - 2022-12-25 9:30 AM"
 }
 
 private def textCopyright() {
@@ -199,7 +199,7 @@ def getDpCommandOpen() {
 // Stop - default 0x01
 def getDpCommandStop() {
     def manufacturer = device.getDataValue("manufacturer")
-    if (manufacturer in ["_TZE200_nueqqe6k"]) 
+    if (manufacturer in ["_TZE200_nueqqe6k"] || isTS130F()) 
         return DP_COMMAND_CLOSE //0x02
     else if (manufacturer in ["_TZE200_rddyvrci"]) 
         return DP_COMMAND_OPEN //0x00
@@ -210,7 +210,7 @@ def getDpCommandStop() {
 // Close - default 0x02
 def getDpCommandClose() {
     def manufacturer = device.getDataValue("manufacturer")
-    if (manufacturer in ["_TZE200_nueqqe6k", "_TZE200_rddyvrci"])
+    if (manufacturer in ["_TZE200_nueqqe6k", "_TZE200_rddyvrci"] || isTS130F())
         return DP_COMMAND_STOP //0x01
     else if (manufacturer in ["_TZE200_cowvfni3", "_TYST11_cowvfni3"])
         return DP_COMMAND_OPEN //0x00
@@ -406,8 +406,12 @@ def parseNonTuyaMessage( descMap ) {
                 logWarn "read attribute response: unsupported cluster ${descMap?.clusterId} attribute ${descMap.data[1] + descMap.data[0]} (status ${descMap.data[2]})"
             }
             else {
-                if (descMap?.attrId == "0008") {   
-                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute CurrentPositionLiftPercentage ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                if (descMap?.attrId == "0008") {
+                    def dataValue = zigbee.convertHexToInt(descMap?.value)
+                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute CurrentPositionLiftPercentage ${descMap?.attrId} value : ${dataValue}"
+                    restartPositionReportTimeout()
+    				updateWindowShadeArrived(dataValue)
+    				updatePosition(dataValue)
                 }
                 else if (descMap?.attrId == "F000") {   
                     def val = zigbee.convertHexToInt(descMap?.value)
@@ -777,7 +781,7 @@ def close() {
         restartPositionReportTimeout()
         def dpCommandClose = getDpCommandClose()
         if (isTS130F()) {
-            sendZigbeeCommands(zigbee.command(0x0102, dpCommandClose as int, [destEndpoint:0x01], delay=200))
+            sendZigbeeCommands(zigbee.command(0x0102, /*1*/ dpCommandClose as int, [destEndpoint:0x01], delay=200))
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandClose, 2)
@@ -798,7 +802,7 @@ def open() {
         restartPositionReportTimeout()
         def dpCommandOpen = getDpCommandOpen()
         if (isTS130F()) {
-            sendZigbeeCommands(zigbee.command(0x0102, dpCommandOpen as int, [destEndpoint:0x01], delay=200))
+            sendZigbeeCommands(zigbee.command(0x0102, /*0*/ dpCommandOpen as int, [destEndpoint:0x01], delay=200))
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandOpen, 2)
@@ -833,7 +837,7 @@ def stopPositionChange() {
     restartPositionReportTimeout()
     def dpCommandStop = getDpCommandStop()    
     if (isTS130F()) {
-        sendZigbeeCommands(zigbee.command(0x0102, dpCommandStop as int, [destEndpoint:0x01], delay=200))
+        sendZigbeeCommands(zigbee.command(0x0102, /*2*/dpCommandStop as int, [destEndpoint:0x01], delay=200))
     }
     else {
         sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandStop, 2)
