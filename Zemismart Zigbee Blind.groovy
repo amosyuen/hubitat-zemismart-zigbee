@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-24 8:43 PM"
+	return "3.3.0 (test branch) - 2022-12-24 9:45 PM"
 }
 
 private def textCopyright() {
@@ -119,6 +119,13 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_r0jdjrvi" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_bqcqqjpb" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_udank5zs" ,deviceJoinName: "Motorized Window Opener"           // similar to _TZE200_fzo2pocs
+        //
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_zirycpws" ,deviceJoinName: "Zigbee Curtain Module QS-Zigbee-CP03"    // https://www.aliexpress.com/item/1005003697194481.html
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_1dd0d5yi" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_4uuaja4a" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_fccpjz5z" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_vd43bbfq" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_ke7pzj5d" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
         // 
         // defaults are :  open: 0, stop: 1,  close: 2   
 	}
@@ -150,6 +157,7 @@ metadata {
     		input ("mixedDP2reporting", "bool", title: "Ignore the first Position report",  description: "Some devices report both the Target and the Current positions the same way", required: true, defaultValue: false)
     		input ("substituteOpenClose", "bool", title: "Substitute Open/Close commands with SetPosition",  description: "Turn this option on if your motor does not work in 'lift' mode", required: true, defaultValue: false)
     		input ("positionReportTimeout", "number", title: "Position report timeout, ms", description: "The maximum time between position reports", required: true, defaultValue: POSITION_UPDATE_TIMEOUT)
+    		input ("forcedTS130F", "bool", title: "Force TS130F Model",  description: "Force TS130F Model if Data section shows endpointId: <b>F2</b>", required: true, defaultValue: false)
         }
 	}
 }
@@ -159,6 +167,7 @@ metadata {
 @Field final Map MODE_MAP_REVERSE = MODE_MAP.collectEntries { [(it.value): it.key] }
 @Field final List MODES = MODE_MAP.collect { it.value }
 @Field final Map DIRECTION_MAP = [0: "forward", 1: "reverse"]
+@Field final Map MOVING_MAP = [0: "up/open", 1: "stop", 2: "down/close" ]
 @Field final Map DIRECTION_MAP_REVERSE = DIRECTION_MAP.collectEntries { [(it.value): it.key] }
 @Field final List DIRECTIONS = DIRECTION_MAP.collect { it.value }
 @Field final int CHECK_FOR_RESPONSE_INTERVAL_SECONDS = 60
@@ -170,6 +179,8 @@ metadata {
 @Field final int tuyaMotorReversal =   0xf002        //   type: enum8
 @Field final int moesCalibrationTime = 0xf003        //   type: uint16
 
+def getModel() { settings?.forcedTS130F == true ? "TS130F" : device.getDataValue('model') }
+def isTS130F() { getModel() == "TS130F" }
 
 def isCurtainMotor() {
     def manufacturer = device.getDataValue("manufacturer")
@@ -243,7 +254,7 @@ def installed() {
 // This method is called when the preferences of a device are updated.
 def updated() {
 	configure(fullInit = false)
-    logDebug("updated ${device.displayName} model=${device.getDataValue('model')} manufacturer=${device.getDataValue('manufacturer')}")
+    logDebug("updated ${device.displayName} model=${getModel()} manufacturer=${device.getDataValue('manufacturer')}")
 }
 
 def configure(boolean fullInit = true) {
@@ -271,6 +282,8 @@ def configure(boolean fullInit = true) {
     if (settings.positionReportTimeout == null || fullInit == true) device.updateSetting("positionReportTimeout", [value: getPositionReportTimeout(), type: "number"]) 
     if (settings.maxClosedPosition == null || fullInit == true) device.updateSetting("maxClosedPosition", [value: 1, type: "number"]) 
     if (settings.minOpenPosition == null || fullInit == true) device.updateSetting("minOpenPosition", [value: 99, type: "number"]) 
+    if (settings.forcedTS130F == null || fullInit == true) device.updateSetting("forcedTS130F", [value: false, type: "bool"]) 
+    
     
 	if (settings?.maxClosedPosition < 0 || settings?.maxClosedPosition > 100) {
 		throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
@@ -286,7 +299,7 @@ def configure(boolean fullInit = true) {
 	}
     
     
-    logInfo("${device.displayName} configured : model=${device.getDataValue('model')} manufacturer=${device.getDataValue('manufacturer')}")
+    logInfo("${device.displayName} configured : model=${getModel()} manufacturer=${device.getDataValue('manufacturer')}")
     logDebug(" fullInit=${fullInit} invertPosition=${settings.invertPosition}, positionReportTimeout=${positionReportTimeout}, mixedDP2reporting=${settings.mixedDP2reporting}, substituteOpenClose=${settings.substituteOpenClose}")
 }
 
@@ -393,7 +406,25 @@ def parseNonTuyaMessage( descMap ) {
                 logWarn "read attribute response: unsupported cluster ${descMap?.clusterId} attribute ${descMap.data[1] + descMap.data[0]} (status ${descMap.data[2]})"
             }
             else {
-                logInfo "read attribute response: cluster ${descMap?.cluster} attribute ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                if (descMap?.attrId == "0008") {   
+                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute CurrentPositionLiftPercentage ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                }
+                else if (descMap?.attrId == "F000") {   
+                    def val = zigbee.convertHexToInt(descMap?.value)
+                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute PositionState ${descMap?.attrId} value : ${val} - <b>${MOVING_MAP[val]}</b>"
+                }
+                else if (descMap?.attrId == "F001") {
+                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute UpDownConfirm ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                }
+                else if (descMap?.attrId == "F002") {
+                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute ControlBack ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                }
+                else if (descMap?.attrId == "F003") {
+                    logInfo "WindowCovering cluster ${descMap?.cluster} attribute ScheduleTime ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                }
+                else {
+                    logInfo "read attribute response: cluster ${descMap?.cluster} attribute ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                }
             }
         }
         else if (descMap?.command == "04") {    //write attribute response
@@ -404,9 +435,18 @@ def parseNonTuyaMessage( descMap ) {
                 logInfo "writeAttributeResponse: cluster ${descMap?.clusterId} <b>OK</b> (data : ${descMap.data})"
             }
         }
+        else if (descMap?.command == "0B") {    // ZCL Command Response
+            logDebug "ZCL Default Response to command ${descMap.data[0]} for cluster:${descMap.clusterId} , data=${descMap.data} (Status: ${descMap.data[1]=="00" ? 'Success' : '<b>Failure</b>'})"
+        }
         else {
             logWarn "windowCovering unprocessed command ${descMap?.command}"
         }
+    }
+    else if ((descMap?.clusterId == "0006" || descMap?.cluster == "0006") && descMap?.attrId == "8001" && descMap?.command in ["01", "0A"]) {
+        logInfo "OnOff cluster ${descMap?.cluster} attribute IndicatorMode ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+    }
+    else if ((descMap?.clusterId == "0013" || descMap?.cluster == "0013") && descMap?.profileId == "0000") {
+        logInfo "ZDO cluster ${descMap?.clusterId} device announcement Device network ID: ${descMap.data[2]}${descMap.data[1]}, Capability Information: ${descMap.data[11]}"
     }
     else {
         logUnexpectedMessage("parse: Not a Tuya Message descMap=${descMap}")
@@ -725,7 +765,7 @@ def refresh()
 }
 
 def close() {
-    logDebug("close, direction = ${direction as int}")
+    logDebug("sending command close, direction = ${direction as int}")
 	//sendEvent(name: "position", value: 0)
 	if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
         logDebug("close mode == ${settings?.substituteOpenClose == true ? 'substituted with setPosition(0)' : 'MODE_TILT'} ")
@@ -736,12 +776,17 @@ def close() {
         state.isTargetRcvd = true 
         restartPositionReportTimeout()
         def dpCommandClose = getDpCommandClose()
-        sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandClose, 2)
+        if (isTS130F()) {
+            sendZigbeeCommands(zigbee.command(0x0102, dpCommandClose as int, [destEndpoint:0x01], delay=200))
+        }
+        else {
+            sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandClose, 2)
+        }
 	}
 }
 
 def open() {
-	logDebug("open, direction = ${direction as int}")
+	logDebug("sending command open, direction = ${direction as int}")
 	//sendEvent(name: "position", value: 100)
 	if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
         logDebug("open mode == ${settings?.substituteOpenClose == true ? 'substituted with setPosition(100)' : 'MODE_TILT'} ")
@@ -752,7 +797,12 @@ def open() {
         state.isTargetRcvd = true 
         restartPositionReportTimeout()
         def dpCommandOpen = getDpCommandOpen()
-        sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandOpen, 2)
+        if (isTS130F()) {
+            sendZigbeeCommands(zigbee.command(0x0102, dpCommandOpen as int, [destEndpoint:0x01], delay=200))
+        }
+        else {
+            sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandOpen, 2)
+        }
 	}
 }
 
@@ -779,10 +829,15 @@ def startPositionChange(state) {
 }
 
 def stopPositionChange() {
-	logDebug("stopPositionChange")
+	logDebug("sending command stopPositionChange")
     restartPositionReportTimeout()
     def dpCommandStop = getDpCommandStop()    
-    sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandStop, 2)
+    if (isTS130F()) {
+        sendZigbeeCommands(zigbee.command(0x0102, dpCommandStop as int, [destEndpoint:0x01], delay=200))
+    }
+    else {
+        sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandStop, 2)
+    }
 }
 
 def setLevel( level, duration = null )
