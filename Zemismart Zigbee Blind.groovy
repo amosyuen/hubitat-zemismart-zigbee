@@ -18,7 +18,7 @@
  *
  * VERSION HISTORY
  *                                  
- * 3.3.0 (2022-12-24) [kkossev]   - (TEST branch) - TS130F Curtain Modules support tests;  _TZE200_nhyj64w2 Touch Curtain Switch - calibraion (test); 
+ * 3.3.0 (2022-12-245 [kkossev]   - (TEST branch) - TS130F Curtain Modules support tests;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion (test); 
  *
  * 3.2.5 (2022-12-12) [kkossev]   - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; unscheduling of old periodic tasks; _TZE200_7eue9vhc not inverted
  * 3.2.4 (2022-12-02) [kkossev]   - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-25 9:30 AM"
+	return "3.3.0 (test branch) - 2022-12-26 8:49 AM"
 }
 
 private def textCopyright() {
@@ -186,6 +186,8 @@ def isCurtainMotor() {
     def manufacturer = device.getDataValue("manufacturer")
     return manufacturer in ["_TYST11_cowvfni3", "_TZE200_cowvfni3", "_TYST11_cowvfr"] 
 }
+
+def isMoesCoverSwitch() { device.getDataValue("manufacturer") in ["_TZE200_nhyj64w2"] }
 
 // Open - default 0x00
 def getDpCommandOpen() {
@@ -1060,38 +1062,44 @@ def setTS130FCalibrationTime( val ) {
 
 def setTS130FCalibrationOn( val=null  ) {
     if (true) { 
-        logInfo "setting setMoesCalibration<b>On</b>"                
+        logInfo "setting TS130F Calibration<b>On</b>"                    // On is 0 ?
         return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 1, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [destEndpoint:0x01], delay=200)
     }
 }
 
 def setTS130FCalibrationOff( val=null  ) {
     if (true) { 
-        logInfo "setting setMoesCalibration<b>Off</b>"                
+        logInfo "setting TS130F Calibration<b>Off</b>"                   // Off is 1 ?     
         return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 0, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [destEndpoint:0x01], delay=200)
     }
 }
 //---------------------
 
-def setMoesCalibrationTime( val ) {
-    if (true) { 
-        int calibrationTime = val * 10 
-        logInfo "changing moesCalibrationTime to : ${val} seconds (raw ${calibrationTime})"                
-        return zigbee.writeAttribute(0x0102, moesCalibrationTime, DataType.UINT16, calibrationTime as int, [destEndpoint:0x01], delay=200) + zigbee.readAttribute(0x0102, moesCalibrationTime, [destEndpoint:0x01], delay=200)
-    }
-}
-
 def setMoesCalibrationOn( val=null  ) {
     if (true) { 
-        logInfo "setting setMoesCalibration<b>On</b>"                
-        return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 1, [:], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [:], delay=200)
+        logInfo "setting setMoesCalibration<b>On</b>"                 
+        return sendTuyaCommand(0x03, DP_TYPE_BOOL, 0x00, 2)
     }
 }
 
 def setMoesCalibrationOff( val=null  ) {
     if (true) { 
         logInfo "setting setMoesCalibration<b>Off</b>"                
-        return zigbee.writeAttribute(0x0102, tuyaCalibration, DataType.ENUM8, 0, [:], delay=200) + zigbee.readAttribute(0x0102, tuyaCalibration, [:], delay=200)
+        return sendTuyaCommand(0x03, DP_TYPE_BOOL, 0x01, 2)
+    }
+}
+
+def setMoesBacklightOn( val=null  ) {
+    if (true) { 
+        logInfo "setting Moes Backlight <b>On</b>"                 
+        return sendTuyaCommand(0x07, DP_TYPE_BOOL, 0x00, 2)
+    }
+}
+
+def setMoesBacklightOff( val=null  ) {
+    if (true) { 
+        logInfo "setting Moes Backlight <b>Off</b>"                
+        return sendTuyaCommand(0x07, DP_TYPE_BOOL, 0x01, 2)
     }
 }
 
@@ -1108,9 +1116,11 @@ def setMoesCalibrationOff( val=null  ) {
     "TS130F Calibration On"  : [ type: 'none', function: 'setTS130FCalibrationOn'],
     "TS130F Calibration Off" : [ type: 'none', function: 'setTS130FCalibrationOff'],
     
-    "moesCalibrationTime": [ min: 1,   scale: 0, max: 99, step: 1,   type: 'number',   defaultValue: 7   , function: 'setMoesCalibrationTime'],
-    "moesCalibrationOn"  : [ type: 'none', function: 'setMoesCalibrationOn'],
-    "moesCalibrationOff" : [ type: 'none', function: 'setMoesCalibrationOff'],
+    "Moes Calibration On"  : [ type: 'none', function: 'setMoesCalibrationOn'],
+    "Moes Calibration Off" : [ type: 'none', function: 'setMoesCalibrationOff'],
+
+    "Moes Backlight On"  : [ type: 'none', function: 'setMoesBacklightOn'],
+    "Moes Backlight Off" : [ type: 'none', function: 'setMoesBacklightOff'],
     
     "ZM85setLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
     "ZM85setUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
