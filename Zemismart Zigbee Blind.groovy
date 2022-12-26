@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-26 8:49 AM"
+	return "3.3.0 (test branch) - 2022-12-26 2:33 PM"
 }
 
 private def textCopyright() {
@@ -379,8 +379,7 @@ def parse(String description) {
 				logUnexpectedMessage("parse: Invalid data size for ACK descMap=${descMap}")
 				return null
 			}
-			def ackCommand = zigbee.convertHexToInt(descMap.data.join())
-	        logTrace("parse: ACK command=${ackCommand}")
+            logTrace("parse: ACK command=${descMap.data[0]}")
 			break
 		case ZIGBEE_COMMAND_SET_TIME: // 0x24
 			// Data payload seems to increment every hour but doesn't seem to be an absolute value
@@ -530,18 +529,23 @@ def parseSetDataResponse(descMap) {
 			}
 			break
 		
-		case DP_ID_CURRENT_POSITION: // 0x03 Current Position
-			if (dataValue >= 0 && dataValue <= 100) {
-                if ( invertPosition == true ) {
-                    dataValue = 100 - dataValue
-                }
-				logDebug("parse: arrived at position ${dataValue}")    // for AM43 this is received just once, when arrived at the destination point!
-                restartPositionReportTimeout()
-				updateWindowShadeArrived(dataValue)
-				updatePosition(dataValue)
-			} else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
-			}
+		case DP_ID_CURRENT_POSITION: // 0x03 Current Position or Moes Cover Calibration
+            if (isMoesCoverSwitch()) {
+                logDebug("parse: Moes Cover Calibration DP ${dp} value = ${dataValue}")
+            }
+            else {
+    			if (dataValue >= 0 && dataValue <= 100) {
+                    if ( invertPosition == true ) {
+                        dataValue = 100 - dataValue
+                    }
+    				logDebug("parse: arrived at position ${dataValue}")    // for AM43 this is received just once, when arrived at the destination point!
+                    restartPositionReportTimeout()
+    				updateWindowShadeArrived(dataValue)
+    				updatePosition(dataValue)
+    			} else {
+    				logUnexpectedMessage("parse: Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
+    			}
+            }
 			break
 		
 		case DP_ID_DIRECTION: // 0x05 Direction
@@ -558,18 +562,25 @@ def parseSetDataResponse(descMap) {
             logUnexpectedMessage("parse: Arrived at destination (dataValue==${dataValue})")
 			break		
         
-		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command  (Curtain 
-			if (dataValue == 0) {
-				logDebug("parse: opening from remote")
-				updateWindowShadeOpening()
-			} else if (dataValue == 1) {
-				logDebug("parse: closing from remote")
-				updateWindowShadeClosing()
-			} else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}")
-			}
-            restartPositionReportTimeout()
+		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command  (or Moes Curtain switch Backlight?)
+            if (isMoesCoverSwitch()) {
+                logDebug("parse: Moes Curtain switch Backlight DP ${dp} value = ${dataValue}")            }
+            else {
+    			if (dataValue == 0) {
+    				logDebug("parse: opening from remote")
+    				updateWindowShadeOpening()
+    			} else if (dataValue == 1) {
+    				logDebug("parse: closing from remote")
+    				updateWindowShadeClosing()
+    			} else {
+    				logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}")
+    			}
+                restartPositionReportTimeout()
+            }
     		break
+        case 0x08: 
+            logDebug("parse: Moes motor reversal DP ${dp} value = ${dataValue}")
+            break
         
         case 0x0C: 
             logDebug("parse: ZM25TQ unknown DP ${dp} value = ${dataValue}")
@@ -1078,28 +1089,42 @@ def setTS130FCalibrationOff( val=null  ) {
 def setMoesCalibrationOn( val=null  ) {
     if (true) { 
         logInfo "setting setMoesCalibration<b>On</b>"                 
-        return sendTuyaCommand(0x03, DP_TYPE_BOOL, 0x00, 2)
+        return sendTuyaCommand(0x03, DP_TYPE_ENUM, 0x00, 2)
     }
 }
 
 def setMoesCalibrationOff( val=null  ) {
     if (true) { 
         logInfo "setting setMoesCalibration<b>Off</b>"                
-        return sendTuyaCommand(0x03, DP_TYPE_BOOL, 0x01, 2)
+        return sendTuyaCommand(0x03, DP_TYPE_ENUM, 0x01, 2)
     }
 }
 
 def setMoesBacklightOn( val=null  ) {
     if (true) { 
         logInfo "setting Moes Backlight <b>On</b>"                 
-        return sendTuyaCommand(0x07, DP_TYPE_BOOL, 0x00, 2)
+        return sendTuyaCommand(0x07, DP_TYPE_BOOL, 0x01, 2)
     }
 }
 
 def setMoesBacklightOff( val=null  ) {
     if (true) { 
         logInfo "setting Moes Backlight <b>Off</b>"                
-        return sendTuyaCommand(0x07, DP_TYPE_BOOL, 0x01, 2)
+        return sendTuyaCommand(0x07, DP_TYPE_BOOL, 0x00, 2)
+    }
+}
+
+def setMoesMotorReversalOn( val=null  ) {
+    if (true) { 
+        logInfo "setting Moes Motor Reversal <b>On</b>"                 
+        return sendTuyaCommand(0x08, DP_TYPE_ENUM, 0x01, 2)
+    }
+}
+
+def setMoesMotorReversalOff( val=null  ) {
+    if (true) { 
+        logInfo "setting Moes Motor Reversal <b>Off</b>"                
+        return sendTuyaCommand(0x08, DP_TYPE_ENUM, 0x00, 2)
     }
 }
 
@@ -1118,9 +1143,10 @@ def setMoesBacklightOff( val=null  ) {
     
     "Moes Calibration On"  : [ type: 'none', function: 'setMoesCalibrationOn'],
     "Moes Calibration Off" : [ type: 'none', function: 'setMoesCalibrationOff'],
-
     "Moes Backlight On"  : [ type: 'none', function: 'setMoesBacklightOn'],
     "Moes Backlight Off" : [ type: 'none', function: 'setMoesBacklightOff'],
+    "Moes Motor Reversal On"  : [ type: 'none', function: 'setMoesMotorReversalOn'],
+    "Moes Motor Reversal Off" : [ type: 'none', function: 'setMoesMotorReversalOff'],
     
     "ZM85setLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
     "ZM85setUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
