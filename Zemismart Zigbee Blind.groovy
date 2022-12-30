@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-30 12:39 PM"
+	return "3.3.0 (test branch) - 2022-12-30 1:43 PM"
 }
 
 private def textCopyright() {
@@ -863,7 +863,12 @@ def close() {
         def dpCommandClose = getDpCommandClose()
         logDebug "sending command close (${dpCommandClose}), direction = ${direction as int}"
         if (isTS130F()) {
-            sendZigbeeCommands(zigbee.command(0x0102, /*1*/ dpCommandClose as int, [destEndpoint:0x01], delay=200))
+            sendZigbeeCommands(zigbee.command(0x0102, dpCommandClose as int, [destEndpoint:0x01], delay=200))
+        }
+        else if (isZM85EL()) {    // situation_set
+            //sendTuyaCommand(0x0B, DP_TYPE_ENUM, 0x01, 2)
+    		setPosition(0)
+            //sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, 2, 2)
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandClose, 2)
@@ -884,6 +889,11 @@ def open() {
         logDebug "sending command open (${dpCommandOpen}), direction = ${settings.direction as int}"
         if (isTS130F()) {
             sendZigbeeCommands(zigbee.command(0x0102, dpCommandOpen as int, [destEndpoint:0x01], delay=200))
+        }
+        else if (isZM85EL()) {    // situation_set ?
+            //sendTuyaCommand(0x0B, DP_TYPE_ENUM, 0x00, 2)
+    		setPosition(100)
+            //sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, 0, 2)
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandOpen, 2)
@@ -968,20 +978,29 @@ def stopPositionReportTimeout() {
     unschedule(endOfMovement)
 }
 
-
 def stepClose(step) {
-	if (!step) {
-		step = defaultStepAmount
-	}
-	stepOpen(-step)
+    if (isZM85EL()) {
+        setZM85ClickControlDown()
+    }
+    else {
+    	if (!step) {
+    		step = defaultStepAmount
+    	}
+    	stepOpen(-step)
+    }
 }
 
 def stepOpen(step) {
-	logDebug("stepOpen: step=${step}")
-	if (!step) {
-		step = defaultStepAmount
-	}
-	setPosition(Math.max( 0, Math.min(100, (device.currentValue("position") + step) as int)))
+    if (isZM85EL()) {
+        setZM85ClickControlUp()
+    }
+    else {
+    	logDebug("stepOpen: step=${step}")
+    	if (!step) {
+    		step = defaultStepAmount
+    	}
+    	setPosition(Math.max( 0, Math.min(100, (device.currentValue("position") + step) as int)))
+    }
 }
 
 
@@ -1202,8 +1221,10 @@ def setZM85LowerLimit( val=null  )       { logInfo "removing ZM85 Lower limit"; 
 def removeZM85UpperLimit( val=null  )    { logInfo "removing ZM85 Upper limit"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x02, 2) }
 def removeZM85LowerLimit( val=null  )    { logInfo "removing ZM85 Lower limit"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x03, 2) }
 def removeZM85TopBottom( val=null  )     { logInfo "removing ZM85 both Top and Bottom limits"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x04, 2) }
-def setZM85ClickControlUp( val=null  )   { logInfo "setting ZM85 Click Control<b>Up</b>";   return sendTuyaCommand(0x14, DP_TYPE_ENUM, 0x00, 2) }
-def setZM85ClickControlDown( val=null  ) { logInfo "setting ZM85 Click Control<b>Down</b>"; return sendTuyaCommand(0x14, DP_TYPE_ENUM, 0x01, 2) }
+def setZM85ClickControlUp( val=null  )   { logInfo "ZM85 Click Control <b>Up</b>";   return sendTuyaCommand(0x14, DP_TYPE_ENUM, 0x00, 2) }
+def setZM85ClickControlDown( val=null  ) { logInfo "ZM85 Click Control <b>Down</b>"; return sendTuyaCommand(0x14, DP_TYPE_ENUM, 0x01, 2) }
+def setZM85ModeMorning( val=null  )          { logInfo "ZM85 Mode <b>Morning</b>";   return sendTuyaCommand(0x04, DP_TYPE_ENUM, 0x00, 2) }
+def setZM85ModeNight( val=null  )        { logInfo "ZM85 Mode <b>Night</b>"; return sendTuyaCommand(0x04, DP_TYPE_ENUM, 0x01, 2) }
 
 
 @Field static final Map settableParsMap = [
@@ -1223,8 +1244,8 @@ def setZM85ClickControlDown( val=null  ) { logInfo "setting ZM85 Click Control<b
     "ZM85 Remove Upper Limit" : [ type: 'none', function: 'removeZM85UpperLimit'],
     "ZM85 Remove Lower Limit" : [ type: 'none', function: 'removeZM85LowerLimit'],
     "ZM85 Remove Both Limits" : [ type: 'none', function: 'removeZM85TopBottom'],
-    "ZM85 Click Control Up" : [ type: 'none', function: 'setZM85ClickControlUp'],
-    "ZM85 Click Control Down" : [ type: 'none', function: 'setZM85ClickControlDown']
+    "ZM85 Mode Morning" : [ type: 'none', function: 'setZM85ModeMorning'],
+    "ZM85 Mode Night" : [ type: 'none', function: 'setZM85ModeNight']
 ]
 
 
