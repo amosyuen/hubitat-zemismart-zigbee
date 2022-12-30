@@ -18,7 +18,7 @@
  *
  * VERSION HISTORY
  *                                  
- * 3.3.0 (2022-12-26) [kkossev]   - (dev. branch) - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; 
+ * 3.3.0 (2022-12-30) [kkossev]   - (dev. branch) - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; ZM85 _TZE200_cf1sl3tj support, including calibration;
  *
  * 3.2.5 (2022-12-12) [kkossev]   - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; unscheduling of old periodic tasks; _TZE200_7eue9vhc not inverted
  * 3.2.4 (2022-12-02) [kkossev]   - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.0 (test branch) - 2022-12-26 2:33 PM"
+	return "3.3.0 (test branch) - 2022-12-30 12:39 PM"
 }
 
 private def textCopyright() {
@@ -157,7 +157,7 @@ metadata {
     		input ("mixedDP2reporting", "bool", title: "Ignore the first Position report",  description: "Some devices report both the Target and the Current positions the same way", required: true, defaultValue: false)
     		input ("substituteOpenClose", "bool", title: "Substitute Open/Close commands with SetPosition",  description: "Turn this option on if your motor does not work in 'lift' mode", required: true, defaultValue: false)
     		input ("positionReportTimeout", "number", title: "Position report timeout, ms", description: "The maximum time between position reports", required: true, defaultValue: POSITION_UPDATE_TIMEOUT)
-    		input ("forcedTS130F", "bool", title: "Force TS130F Model",  description: "Force TS130F Model if Data section shows endpointId: <b>F2</b>", required: true, defaultValue: false)
+    		input ("forcedTS130F", "bool", title: "Force TS130F Model",  description: "Force TS130F model if Data section shows endpointId: <b>F2</b>", required: true, defaultValue: false)
         }
 	}
 }
@@ -178,9 +178,14 @@ metadata {
 @Field final int tuyaCalibration =     0xf001        //   type: enum8
 @Field final int tuyaMotorReversal =   0xf002        //   type: enum8
 @Field final int moesCalibrationTime = 0xf003        //   type: uint16
+@Field final Map ZM85EL_MODE = [0: "morning", 1: "night"]    // DP=4; enum
+@Field final Map ZM85EL_SITUATION_SET = [0: "fully_open", 1: "fully_close"]    // DP=11; enum
+@Field final Map ZM85EL_BORDER = [0: "up", 1: "down", 2: "up_delete", 3: "down_delete", 4: "remove_top_bottom"]    // DP=16; enum
+@Field final Map ZM85EL_CLICK_CONTROL = [0: "up", 1: "down"]    // DP=20; enum
 
 def getModel() { settings?.forcedTS130F == true ? "TS130F" : device.getDataValue('model') }
 def isTS130F() { getModel() == "TS130F" }
+def isZM85EL() { device.getDataValue("manufacturer") in ["_TZE200_cf1sl3tj"] }
 
 def isCurtainMotor() {
     def manufacturer = device.getDataValue("manufacturer")
@@ -241,9 +246,7 @@ def isZM25TQ() { return device.getDataValue("manufacturer") in ["_TZE200_fzo2poc
 
 def isOpenCloseSubstituted() { return device.getDataValue("manufacturer") in ["_TZE200_rddyvrci", "_TZE200_fzo2pocs", "_TZE200_udank5zs"] }
 
-def getPositionReportTimeout() {
-    return POSITION_UPDATE_TIMEOUT
-}
+def getPositionReportTimeout() { isZM85EL() ? 15000 : POSITION_UPDATE_TIMEOUT }
 
 //
 // Life Cycle
@@ -286,6 +289,9 @@ def configure(boolean fullInit = true) {
     if (settings.minOpenPosition == null || fullInit == true) device.updateSetting("minOpenPosition", [value: 99, type: "number"]) 
     if (settings.forcedTS130F == null || fullInit == true) device.updateSetting("forcedTS130F", [value: false, type: "bool"]) 
     
+    if (isZM85EL()) {
+        logDebug "isZM85EL() = ${isZM85EL()}"
+    }
     
 	if (settings?.maxClosedPosition < 0 || settings?.maxClosedPosition > 100) {
 		throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
@@ -381,9 +387,13 @@ def parse(String description) {
 			}
             logTrace("parse: ACK command=${descMap.data[0]}")
 			break
+        case 0x10 : // TUYA_MCU_VERSION_REQ 
+            logDebug "Tuya MCU Version Request : ${descMap?.data}"
+            break
+        case 0x11 : // TUYA_MCU_VERSION_RSP
+            logDebug "Tuya MCU Version Respinse : ${descMap?.data}"
+            break
 		case ZIGBEE_COMMAND_SET_TIME: // 0x24
-			// Data payload seems to increment every hour but doesn't seem to be an absolute value
-	        logTrace("parse: SET_TIME data=${descMap.data}")
             processTuyaSetTime()
 			break
 		default:
@@ -417,15 +427,19 @@ def parseNonTuyaMessage( descMap ) {
                 else if (descMap?.attrId == "F000") {   
                     def val = zigbee.convertHexToInt(descMap?.value)
                     logInfo "WindowCovering cluster ${descMap?.cluster} attribute PositionState ${descMap?.attrId} value : ${val} - <b>${MOVING_MAP[val]}</b>"
+                    // TODO !
                 }
                 else if (descMap?.attrId == "F001") {
                     logInfo "WindowCovering cluster ${descMap?.cluster} attribute UpDownConfirm ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                    // TODO !
                 }
                 else if (descMap?.attrId == "F002") {
                     logInfo "WindowCovering cluster ${descMap?.cluster} attribute ControlBack ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                    // TODO !
                 }
                 else if (descMap?.attrId == "F003") {
                     logInfo "WindowCovering cluster ${descMap?.cluster} attribute ScheduleTime ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
+                    // TODO!
                 }
                 else {
                     logInfo "read attribute response: cluster ${descMap?.cluster} attribute ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
@@ -470,7 +484,7 @@ def parseNonTuyaMessage( descMap ) {
  * https://developer.tuya.com/en/docs/iot-device-dev/zigbee-curtain-switch-access-standard?id=K9ik6zvra3twv
  */
 def parseSetDataResponse(descMap) {
-	logTrace("parseSetDataResponse: descMap=${descMap}")
+	logTrace "parse: descMap=${descMap}"
 	def data = descMap.data
 	def dp = zigbee.convertHexToInt(data[2])
 	def dataValue = zigbee.convertHexToInt(data[6..-1].join())
@@ -478,21 +492,21 @@ def parseSetDataResponse(descMap) {
 		case DP_ID_COMMAND: // 0x01 Command
             restartPositionReportTimeout()
             if (dataValue == getDpCommandOpen()) {        // OPEN - typically 0x00
-                logDebug("parse: opening (DP=1, data=${dataValue})")
+                logDebug("parse (01): opening (DP=1, data=${dataValue})")
 				updateWindowShadeOpening()
             }
             else if (dataValue == getDpCommandStop()) {    // STOP - typically 0x01
-				logDebug("parse: stopping (DP=1, data=${dataValue})")
+				logDebug("parse (01): stopping (DP=1, data=${dataValue})")
             }
             else if (dataValue == getDpCommandClose()) {   // CLOSE - typically 0x02
-				logDebug("parse: closing (DP=1, data=${dataValue})")
+				logDebug("parse (01): closing (DP=1, data=${dataValue})")
 				updateWindowShadeClosing()
             }
             else if (dataValue == DP_COMMAND_CONTINUE) {   // CONTINUE - 0x03
-				logDebug("parse: continuing (DP=1, data=${dataValue})")
+				logDebug("parse (01): continuing (DP=1, data=${dataValue})")
             }
             else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND dataValue=${dataValue}")
+				logUnexpectedMessage("parse (01): Unexpected DP_ID_COMMAND dataValue=${dataValue}")
             }
             break
 		
@@ -505,100 +519,137 @@ def parseSetDataResponse(descMap) {
                 if (mixedDP2reporting == true) {
                     if (state.isTargetRcvd == false) {        // only for setPosition commands; Open and Close do not report the target pos!
                         if (dataValue == state.target) {
-                            logDebug("parse: received target ${dataValue} from mixedDP2reporting device")
+                            logDebug("parse (02): received target ${dataValue} from mixedDP2reporting device")
                         }
                         else {
-            				logUnexpectedMessage("parse: received target ${dataValue} from mixedDP2reporting device, <b>set target was ${state.target}</b>")
+            				logUnexpectedMessage("parse (02): received target ${dataValue} from mixedDP2reporting device, <b>set target was ${state.target}</b>")
                         }
                         state.isTargetRcvd = true
                     }
                     else {
-                        logTrace("parse: reveived current position ${dataValue} from mixedDP2reporting device")
-        				logDebug("parse: moved to position ${dataValue}")
+                        logTrace("parse (02): reveived current position ${dataValue} from mixedDP2reporting device")
+        				logDebug("parse (02): moved to position ${dataValue}")
         				updateWindowShadeMoving(dataValue)
         				updatePosition(dataValue)
                     }
                 }
                 else {                                        // for all other models - this is the Target position 
-                    logDebug("parse: received target ${dataValue}")
+                    logDebug("parse (02): received target ${dataValue}")
                     state.isTargetRcvd = true
                 }
 			} 
             else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}")
+				logUnexpectedMessage("parse (02): Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}")
 			}
 			break
 		
 		case DP_ID_CURRENT_POSITION: // 0x03 Current Position or Moes Cover Calibration
             if (isMoesCoverSwitch()) {
-                logDebug("parse: Moes Cover Calibration DP ${dp} value = ${dataValue}")
+                logDebug("parse (03): Moes Cover Calibration DP ${dp} value = ${dataValue}")
             }
             else {
     			if (dataValue >= 0 && dataValue <= 100) {
                     if ( invertPosition == true ) {
                         dataValue = 100 - dataValue
                     }
-    				logDebug("parse: arrived at position ${dataValue}")    // for AM43 this is received just once, when arrived at the destination point!
-                    restartPositionReportTimeout()
+    				logDebug("parse (03): arrived at position ${dataValue}")    // for AM43 and ZM85 this is received just once, when arrived at the destination point!
+                    if (isZM85EL()) {
+                        stopPositionReportTimeout()
+                    }
+                    else { // TODO - same filtering for AM43 !
+                        restartPositionReportTimeout()
+                    }
     				updateWindowShadeArrived(dataValue)
     				updatePosition(dataValue)
     			} else {
-    				logUnexpectedMessage("parse: Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
+    				logUnexpectedMessage("parse (03): Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
     			}
             }
 			break
+        case 0x04 : // working mode {“range”:[“morning”,“night”],“type”:“enum”}
+            logDebug("parse (04): isZM85EL=${isZM85EL()} mode = ${ZM85EL_MODE[dataValue as int]} (value = ${dataValue})")
+            break
 		
-		case DP_ID_DIRECTION: // 0x05 Direction
+		case DP_ID_DIRECTION: // 0x05 Motor Direction (0-forward 1-backward), enum
 			def directionText = DIRECTION_MAP[dataValue]
 			if (directionText != null) {
-				logDebug("parse: direction=${directionText}")
+				logDebug("parse (05): Motor Direction=${directionText}")
 				updateDirection(dataValue)
 			} else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_DIRECTION dataValue=${dataValue}")
+				logUnexpectedMessage("parse (05): Unexpected DP_ID_DIRECTION dataValue=${dataValue}")
 			}
 			break
         
         case 0x06: // 0x06: Arrived at destination (with fncmd==0)
-            logUnexpectedMessage("parse: Arrived at destination (dataValue==${dataValue})")
+            logUnexpectedMessage("parse (06): Arrived at destination (dataValue==${dataValue})")
 			break		
         
-		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command  (or Moes Curtain switch Backlight?)
+		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command / work_state  (or Moes Curtain switch Backlight?)
             if (isMoesCoverSwitch()) {
-                logDebug("parse: Moes Curtain switch Backlight DP ${dp} value = ${dataValue}")            }
+                logDebug("parse (07): Moes Curtain switch Backlight DP ${dp} value = ${dataValue}")            
+            }
+            else if (isZM85EL()) {
+                logDebug("parse (07): moving from ZM85 up/down keys (data=${dataValue})")
+    			updateWindowShadeUndefined()
+            }
             else {
     			if (dataValue == 0) {
-    				logDebug("parse: opening from remote")
+    				logDebug("parse (07): opening from remote")
     				updateWindowShadeOpening()
     			} else if (dataValue == 1) {
-    				logDebug("parse: closing from remote")
+    				logDebug("parse (07): closing from remote")
     				updateWindowShadeClosing()
     			} else {
-    				logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}")
+    				logUnexpectedMessage("parse (07): Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}")
     			}
                 restartPositionReportTimeout()
             }
     		break
-        case 0x08: 
-            logDebug("parse: Moes motor reversal DP ${dp} value = ${dataValue}")
+        case 0x08: // also, for unknown curtain motors : Countdown  {“range”:[“cancel”,“1h”,“2h”,“3h”,“4h”],“type”:“enum”}
+            logDebug("parse (08): Moes motor reversal DP ${dp} value = ${dataValue}")    // isMoesCoverSwitch()
             break
         
-        case 0x0C: 
-            logDebug("parse: ZM25TQ unknown DP ${dp} value = ${dataValue}")
+        case 0x09: // for unknown curtain motors : Left time (Display the remaining time of the countdown) {“unit”:“s”,“min”:0,“max”:86400,“scale”:0,“step”:1,“type” :“value”}
+            logDebug("parse (09): Moes motor reversal DP ${dp} value = ${dataValue}")
+            break
+        
+        case 0x0B : // (11) situation_set - enum ["fully_open", "fully_close"]
+            logDebug("parse (11): isZM85EL=${isZM85EL()} situation_set = ${ZM85EL_SITUATION_SET[dataValue as int]} (value = ${dataValue})")
+            break
+        
+        case 0x0C : // (12) fault - 	Bitmap	
+            logDebug("parse (12): fault code (DP ${dp}) value = ${dataValue}")
             break
 		
-        case DP_ID_BATTERY: // 0xOD Battery
+        case DP_ID_BATTERY: // 0xOD (13) Battery
 			if (dataValue >= 0 && dataValue <= 100) {
-				logDebug("parse: battery=${dataValue}")
+				logDebug("parse (13): battery=${dataValue}")
 				updateBattery(dataValue)
 			} else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_BATTERY dataValue=${dataValue}")
+				logUnexpectedMessage("parse (13): Unexpected DP_ID_BATTERY dataValue=${dataValue}")
 			}
 			break
+        
+        case 0x0E : // (14) indicator light status for Moes Curtain switch ? {“range”:[“relay”,“pos”,“none”],“type”:“enum”}
+            logDebug  "parse (14): indicator light status for Moes Curtain switch value = ${dataValue}"
+            break
+        
+        case 0x10 : // (16) ZM85EL_BORDER 
+            logDebug("parse (16): isZM85EL=${isZM85EL()} BORDER = ${ZM85EL_BORDER[dataValue as int]} (value = ${dataValue})")
+            break
+        
+        case 0x13 : // (19) position_best - Integer	(0..100)
+            logDebug("parse (19): position_best (DP ${dp}) value = ${dataValue}")
+            break
+		
+        case 0x14 : // (20) click_control (2)	Enum	 ["up", "down"]
+            logDebug("parse (20): isZM85EL=${isZM85EL()} click_control = ${ZM85EL_CLICK_CONTROL[dataValue as int]} (value = ${dataValue})")
+            break
         
 		case DP_ID_MODE: // 0x65 Mode
 			def modeText = MODE_MAP[dataValue]
 			if (modeText != null) {
-				logDebug("parse: mode=${modeText}")
+				logDebug("parse (101): mode=${modeText}")
 				updateMode(dataValue)
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_MODE dataValue=${dataValue}")
@@ -606,29 +657,29 @@ def parseSetDataResponse(descMap) {
 			break
         
         case 0x67 :      // (103) ZM25TQ UP limit (when direction is Forward; probably reversed in Backward direction?)
-            logDebug("parse: ZM25TQ Up limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
+            logDebug("parse (103): ZM25TQ Up limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
             break
         
-        case 0x68 :      // (103) ZM25TQ Middle limit
-            logDebug("parse: ZM25TQ Middle limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
+        case 0x68 :      // (104) ZM25TQ Middle limit
+            logDebug("parse (104): ZM25TQ Middle limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
             break
 		
-		case DP_ID_SPEED: // 0x69 Motor speed or ZM25TQ Down limit
+		case DP_ID_SPEED: // (105) 0x69 Motor speed or ZM25TQ Down limit
             if (isZM25TQ()) {
-                logDebug("parse: ZM25TQ Down limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
+                logDebug("parse (105): ZM25TQ Down limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
             }
             else {
     			if (dataValue >= 0 && dataValue <= 100) {
-    				logDebug("parse: speed=${dataValue}")
+    				logDebug("parse (105): speed=${dataValue}")
     				updateSpeed(dataValue)
     			} else {
-    				logUnexpectedMessage("parse: Unexpected DP_ID_SPEED dataValue=${dataValue}")
+    				logUnexpectedMessage("parse (105): Unexpected DP_ID_SPEED dataValue=${dataValue}")
     			}
             }
 			break
         
         case 0x6A: // 106
-            logDebug("parse: ZM25TQ motor mode (DP=${dp}) value = ${dataValue}")
+            logDebug("parse (106): ZM25TQ motor mode (DP=${dp}) value = ${dataValue}")
             break
 			
 		default:
@@ -638,7 +689,7 @@ def parseSetDataResponse(descMap) {
 }
 
 def processTuyaSetTime() {
-    logDebug("${device.displayName} time synchronization request")    // every 61 minutes
+    logDebug("time synchronization request")    // every 61 minutes
     def offset = 0
     try {
         offset = location.getTimeZone().getOffset(new Date().getTime())
@@ -647,7 +698,7 @@ def processTuyaSetTime() {
         log.error "${device.displayName} cannot resolve current location. please set location in Hubitat location setting. Setting timezone offset to zero"
     }
     def cmds = zigbee.command(CLUSTER_TUYA, ZIGBEE_COMMAND_SET_TIME, "0008" +zigbee.convertToHexString((int)(now()/1000),8) +  zigbee.convertToHexString((int)((now()+offset)/1000), 8))
-    logDebug("${device.displayName} sending time data : ${cmds}")
+    logDebug "sending time data : ${cmds}"
     cmds.each{ sendHubCommand(new hubitat.device.HubAction(it, hubitat.device.Protocol.ZIGBEE)) }
 }
 
@@ -687,8 +738,8 @@ private updateMode(modeValue) {
 	}
 }
 
-private updatePosition(position) {
-	logTrace("updatePosition: position=${position}")
+private updatePosition( position ) {
+	logTrace "updatePosition(): position=${position}"
 	sendEvent(name: "position", value: position, unit: "%")
 	sendEvent(name: "level", value: position, unit: "%")
     if (position <= maxClosedPosition) {
@@ -698,8 +749,9 @@ private updatePosition(position) {
     	sendEvent(name:"switch", value: "on")
     }
 	if (isWithinOne(position)) {
-    	logDebug("updatePosition: <b>arrived!</b>")
+        logDebug "updatePosition(${position}): <b>arrived!</b>"
         updateWindowShadeArrived(position)
+        stopPositionReportTimeout()    // added 12/30/2022
 	}    
 }
 
@@ -719,7 +771,7 @@ private updateSpeed(speed) {
 }
 
 private updateBattery(battery) {
-	logDebug("updateBattery: battery=${battery}")
+	logInfo("battery is ${battery} %")
 	sendEvent(name: "battery", value: battery)
 }
 
@@ -735,39 +787,57 @@ private updateWindowShadeMoving(position) {
 }
 
 private updateWindowShadeOpening() {
-	logTrace("updateWindowShadeOpening")
+	logTrace "updateWindowShadeOpening()"
     if ((device.currentValue("windowShade") ?: "undefined") != "opening") {
 	    sendEvent(name:"windowShade", value: "opening")
-        logInfo("${device.displayName} is opening")
+        logInfo "is opening"
     }
 }
 
 private updateWindowShadeClosing() {
-	logTrace("updateWindowShadeClosing")
+	logTrace "updateWindowShadeClosing()"
     if ((device.currentValue("windowShade") ?: "undefined") != "closing") {
     	sendEvent(name:"windowShade", value: "closing")
-        logInfo("${device.displayName} is closing")
+        logInfo "is closing"
     }
 }
 
-private updateWindowShadeArrived(position=null) {
+private updateWindowShadeUndefined() {
+	logTrace "updateWindowShadeUndefined()"
+    if ((device.currentValue("windowShade") ?: "undefined") != "moving") {
+	    sendEvent(name:"windowShade", value: "moving")
+        logInfo "is moving"
+    }
+}
+
+// called from updatePosition(), setPosition(), endOfMovement()
+private updateWindowShadeArrived( position=null ) {
     if (position == null)  {
-        position = device.currentValue("position")
+        position = device.currentValue("position") ?: "undefined"
     }
 	logDebug("updateWindowShadeArrived: position=${position}")
 	if (position == null || position < 0 || position > 100) {
-		log.warn("updateWindowShadeArrived: Need to setup limits on device")
+		logWarn "updateWindowShadeArrived: Need to setup limits on device"
 		sendEvent(name: "windowShade", value: "unknown")
-        logInfo("${device.displayName} windowShade is unknown")
+        logInfo "windowShade is unknown"
+        stopPositionReportTimeout()    // added 12/30/2022
 	} else if (position <= maxClosedPosition) {
-		sendEvent(name: "windowShade", value: "closed")
-        logInfo("${device.displayName} is closed")
+        if ((device.currentValue("windowShade") ?: "undefined") != "closed") {
+    		sendEvent(name: "windowShade", value: "closed")
+            logInfo "is closed"
+            stopPositionReportTimeout()    // added 12/30/2022
+        }
 	} else if (position >= minOpenPosition) {
-		sendEvent(name: "windowShade", value: "open")
-        logInfo("${device.displayName} is open")
+        if ((device.currentValue("windowShade") ?: "undefined") != "open") {
+    		sendEvent(name: "windowShade", value: "open")
+            logInfo "is open"
+            stopPositionReportTimeout()    // added 12/30/2022
+        }
 	} else {
-		sendEvent(name: "windowShade", value: "partially open")
-        logInfo("${device.displayName} is partially open ${position}%")
+        if ((device.currentValue("windowShade") ?: "undefined") != "partially open") {
+		    sendEvent(name: "windowShade", value: "partially open")
+            logInfo "is partially open ${position}%"
+        }
 	}
 }
 
@@ -782,10 +852,8 @@ def refresh()
 }
 
 def close() {
-    logDebug("sending command close, direction = ${direction as int}")
-	//sendEvent(name: "position", value: 0)
 	if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
-        logDebug("close mode == ${settings?.substituteOpenClose == true ? 'substituted with setPosition(0)' : 'MODE_TILT'} ")
+        logDebug("sending command close ${settings?.substituteOpenClose == true ? 'substituted with setPosition(0)' : 'MODE_TILT'} ")
 		setPosition(0)
 	} 
     else {
@@ -793,6 +861,7 @@ def close() {
         state.isTargetRcvd = true 
         restartPositionReportTimeout()
         def dpCommandClose = getDpCommandClose()
+        logDebug "sending command close (${dpCommandClose}), direction = ${direction as int}"
         if (isTS130F()) {
             sendZigbeeCommands(zigbee.command(0x0102, /*1*/ dpCommandClose as int, [destEndpoint:0x01], delay=200))
         }
@@ -803,10 +872,8 @@ def close() {
 }
 
 def open() {
-	logDebug("sending command open, direction = ${direction as int}")
-	//sendEvent(name: "position", value: 100)
 	if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
-        logDebug("open mode == ${settings?.substituteOpenClose == true ? 'substituted with setPosition(100)' : 'MODE_TILT'} ")
+        logDebug "sending command open : ${settings?.substituteOpenClose == true ? 'substituted with setPosition(100)' : 'MODE_TILT'} "
 		setPosition(100)
 	} 
     else {
@@ -814,8 +881,9 @@ def open() {
         state.isTargetRcvd = true 
         restartPositionReportTimeout()
         def dpCommandOpen = getDpCommandOpen()
+        logDebug "sending command open (${dpCommandOpen}), direction = ${settings.direction as int}"
         if (isTS130F()) {
-            sendZigbeeCommands(zigbee.command(0x0102, /*0*/ dpCommandOpen as int, [destEndpoint:0x01], delay=200))
+            sendZigbeeCommands(zigbee.command(0x0102, dpCommandOpen as int, [destEndpoint:0x01], delay=200))
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandOpen, 2)
@@ -846,11 +914,11 @@ def startPositionChange(state) {
 }
 
 def stopPositionChange() {
-	logDebug("sending command stopPositionChange")
+    def dpCommandStop = getDpCommandStop()
+    logDebug "sending command stopPositionChange (${dpCommandStop})"
     restartPositionReportTimeout()
-    def dpCommandStop = getDpCommandStop()    
     if (isTS130F()) {
-        sendZigbeeCommands(zigbee.command(0x0102, /*2*/dpCommandStop as int, [destEndpoint:0x01], delay=200))
+        sendZigbeeCommands(zigbee.command(0x0102, dpCommandStop as int, [destEndpoint:0x01], delay=200))
     }
     else {
         sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandStop, 2)
@@ -862,7 +930,7 @@ def setLevel( level, duration = null )
     setPosition(level)
 }
 
-def setPosition(position) {
+def setPosition( position ) {
 	if (position == null || position < 0 || position > 100) {
 		throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
 	}
@@ -896,6 +964,7 @@ def restartPositionReportTimeout() {
 }
 
 def stopPositionReportTimeout() {
+    logTrace "stopPositionReportTimeout(): unscheduling endOfMovement timer"
     unschedule(endOfMovement)
 }
 
@@ -948,10 +1017,10 @@ def push(buttonNumber)		{
 	}
 }
 
-
+// scheduled from restartPositionReportTimeout()
 def endOfMovement() {
-	logTrace("endOfMovement")
-    updateWindowShadeArrived(device.currentValue("position"))
+	logWarn "endOfMovement() timeout!"
+    updateWindowShadeArrived(device.currentValue("position", true))
 }
 
 //
@@ -965,13 +1034,12 @@ private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
 	def dpHex = zigbee.convertToHexString(dp, 2)
 	def dpTypeHex = zigbee.convertToHexString(dpType, 2)
 	def fnCmdHex = zigbee.convertToHexString(fnCmd, fnCmdLength)
-	logTrace("sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}")
+	logTrace "sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}"
 	def message = (randomPacketId().toString()
 				   + dpHex
 				   + dpTypeHex
 				   + zigbee.convertToHexString((fnCmdLength / 2) as int, 4)
 				   + fnCmdHex)
-	logTrace("sendTuyaCommand: message=${message}")
 	zigbee.command(CLUSTER_TUYA, ZIGBEE_COMMAND_SET_DATA, message)
 }
 
@@ -1127,14 +1195,16 @@ def setMoesMotorReversalOff( val=null  ) {
         return sendTuyaCommand(0x08, DP_TYPE_ENUM, 0x00, 2)
     }
 }
+// ------------
 
-//@Field final int moesCalibrationTime = 0xf003        //   type: uint16
-/*
-    moesCoverCalibration: 3,          // 'ON' ? 0 : 1;
-    moesCoverBacklight: 7,            // true : false
-    moesCoverMotorReversal: 8,        // 'ON' ? 1 : 0;
+def setZM85UpperLimit( val=null  )       { logInfo "removing ZM85 Upper limit"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x00, 2) }
+def setZM85LowerLimit( val=null  )       { logInfo "removing ZM85 Lower limit"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x01, 2) }
+def removeZM85UpperLimit( val=null  )    { logInfo "removing ZM85 Upper limit"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x02, 2) }
+def removeZM85LowerLimit( val=null  )    { logInfo "removing ZM85 Lower limit"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x03, 2) }
+def removeZM85TopBottom( val=null  )     { logInfo "removing ZM85 both Top and Bottom limits"; return sendTuyaCommand(0x10, DP_TYPE_ENUM, 0x04, 2) }
+def setZM85ClickControlUp( val=null  )   { logInfo "setting ZM85 Click Control<b>Up</b>";   return sendTuyaCommand(0x14, DP_TYPE_ENUM, 0x00, 2) }
+def setZM85ClickControlDown( val=null  ) { logInfo "setting ZM85 Click Control<b>Down</b>"; return sendTuyaCommand(0x14, DP_TYPE_ENUM, 0x01, 2) }
 
-*/
 
 @Field static final Map settableParsMap = [
     "TS130F Calibration Time": [ min: 1,   scale: 0, max: 99, step: 1,   type: 'number',   defaultValue: 7   , function: 'setTS130FCalibrationTime'],
@@ -1148,12 +1218,15 @@ def setMoesMotorReversalOff( val=null  ) {
     "Moes Motor Reversal On"  : [ type: 'none', function: 'setMoesMotorReversalOn'],
     "Moes Motor Reversal Off" : [ type: 'none', function: 'setMoesMotorReversalOff'],
     
-    "ZM85setLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
-    "ZM85setUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
-    "ZM85removeUpperLimit" : [ type: 'none', function: 'setNotImplemented'],
-    "ZM85removeLowerLimit" : [ type: 'none', function: 'setNotImplemented'],
-    "ZM85power" : [ type: 'none', function: 'setNotImplemented']
+    "ZM85 Set Upper Limit" : [ type: 'none', function: 'setZM85UpperLimit'],
+    "ZM85 Set Lower Limit" : [ type: 'none', function: 'setZM85LowerLimit'],
+    "ZM85 Remove Upper Limit" : [ type: 'none', function: 'removeZM85UpperLimit'],
+    "ZM85 Remove Lower Limit" : [ type: 'none', function: 'removeZM85LowerLimit'],
+    "ZM85 Remove Both Limits" : [ type: 'none', function: 'removeZM85TopBottom'],
+    "ZM85 Click Control Up" : [ type: 'none', function: 'setZM85ClickControlUp'],
+    "ZM85 Click Control Down" : [ type: 'none', function: 'setZM85ClickControlDown']
 ]
+
 
 def calibrate( par=null, val=null )
 {
