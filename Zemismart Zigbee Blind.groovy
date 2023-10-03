@@ -48,11 +48,10 @@
  *
  * 3.3.0 (2022-12-30) [kkossev]   - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; ZM85 _TZE200_cf1sl3tj support, including calibration;
  * 3.3.1 (2023-03-09) [kkossev]   - added _TZE200_hsgrhjpf
+ * 3.3.2 (2023-08-10) [kkossev]   - replaced some warnings with debug level logs; removed 'enable trace logging' and 'log Unexpected Messages' options;
  *
  *
  *                                TODO: evaluate whether adding retries for setPos is possible : https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525/371?u=kkossev
- *                                TODO: replace warnings with debug level logs : https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525/368?u=kkossev 
- *                                TODO: replace warnings with debug level logs : https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525/362?u=kkossev
  */
 
 import groovy.json.JsonOutput
@@ -61,7 +60,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.1 - 2023-03-09 7:27 AM"
+	return "3.3.2 - 2023-08-10 5:18 PM"
 }
 
 private def textCopyright() {
@@ -157,8 +156,8 @@ metadata {
 		input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
 		input("advancedOptions", "bool", title: "Show Advanced options", description: "These advanced options should have been already set correctly for your device/model when device was Configred", required: true, defaultValue: false)
         if (advancedOptions == true) {
-    		input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
-	    	input("enableUnexpectedMessageLog", "bool", title: "Log unexpected messages", required: true, defaultValue: false)   
+    		//input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
+	    	//input("enableUnexpectedMessageLog", "bool", title: "Log unexpected messages", required: true, defaultValue: false)   
     		input ("invertPosition", "bool", title: "Invert position reporting", description: "Some devices report the position 0..100 inverted", required: true, defaultValue: false)
     		input ("mixedDP2reporting", "bool", title: "Ignore the first Position report",  description: "Some devices report both the Target and the Current positions the same way", required: true, defaultValue: false)
     		input ("substituteOpenClose", "bool", title: "Substitute Open/Close commands with SetPosition",  description: "Turn this option on if your motor does not work in 'lift' mode", required: true, defaultValue: false)
@@ -367,7 +366,7 @@ def setMode() {
 
 def parse(String description) {
 	if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
-		logUnexpectedMessage("parse: Unhandled description=${description}")
+		logWarn "parse: Unhandled description=${description}"
 		return null
 	}
 	updatePresence(true)
@@ -381,17 +380,17 @@ def parse(String description) {
 		case ZIGBEE_COMMAND_SET_DATA_RESPONSE: // 0x02
         case ZIGBEE_COMMAND_REPORTING : // 0x01
 			if (!descMap?.data || descMap.data.size() < 7) {
-                logUnexpectedMessage("parse: Invalid data size for SET_DATA_RESPONSE descMap=${descMap}")
+                logWarn "parse: Invalid data size for SET_DATA_RESPONSE descMap=${descMap}"
 				return null
 			}
 			parseSetDataResponse(descMap)
 			break
 		case ZIGBEE_COMMAND_ACK: // 0x0B
 			if (!descMap?.data || descMap.data.size() < 2) {
-				logUnexpectedMessage("parse: Invalid data size for ACK descMap=${descMap}")
+				logWarn "parse: Invalid data size for ACK descMap=${descMap}"
 				return null
 			}
-            logTrace("parse: ACK command=${descMap.data[0]}")
+            logDebug "parse: ACK command=${descMap.data[0]}"
 			break
         case 0x10 : // TUYA_MCU_VERSION_REQ 
             logDebug "Tuya MCU Version Request : ${descMap?.data}"
@@ -403,7 +402,7 @@ def parse(String description) {
             processTuyaSetTime()
 			break
 		default:
-			logUnexpectedMessage("parse: Unhandled command=${command} descMap=${descMap}")
+			logWarn "parse: Unhandled command=${command} descMap=${descMap}"
 			break
 	}
 }
@@ -471,10 +470,10 @@ def parseNonTuyaMessage( descMap ) {
         logInfo "OnOff cluster ${descMap?.cluster} attribute IndicatorMode ${descMap?.attrId} value : ${zigbee.convertHexToInt(descMap?.value)}"
     }
     else if ((descMap?.clusterId == "0013" || descMap?.cluster == "0013") && descMap?.profileId == "0000") {
-        logInfo "ZDO cluster ${descMap?.clusterId} device announcement Device network ID: ${descMap.data[2]}${descMap.data[1]}, Capability Information: ${descMap.data[11]}"
+        logDebug "ZDO cluster ${descMap?.clusterId} device announcement Device network ID: ${descMap.data[2]}${descMap.data[1]}, Capability Information: ${descMap.data[11]}"
     }
     else {
-        logUnexpectedMessage("parse: Not a Tuya Message descMap=${descMap}")
+        logDebug "parse: Not a Tuya Message descMap=${descMap}"
     }
     
 }
@@ -490,7 +489,7 @@ def parseNonTuyaMessage( descMap ) {
  * https://developer.tuya.com/en/docs/iot-device-dev/zigbee-curtain-switch-access-standard?id=K9ik6zvra3twv
  */
 def parseSetDataResponse(descMap) {
-	logTrace "parse: descMap=${descMap}"
+	logDebug "parse: descMap=${descMap}"
 	def data = descMap.data
 	def dp = zigbee.convertHexToInt(data[2])
 	def dataValue = zigbee.convertHexToInt(data[6..-1].join())
@@ -512,7 +511,7 @@ def parseSetDataResponse(descMap) {
 				logDebug("parse (01): continuing (DP=1, data=${dataValue})")
             }
             else {
-				logUnexpectedMessage("parse (01): Unexpected DP_ID_COMMAND dataValue=${dataValue}")
+				logWarn "parse (01): Unexpected DP_ID_COMMAND dataValue=${dataValue}"
             }
             break
 		
@@ -528,12 +527,12 @@ def parseSetDataResponse(descMap) {
                             logDebug("parse (02): received target ${dataValue} from mixedDP2reporting device")
                         }
                         else {
-            				logUnexpectedMessage("parse (02): received target ${dataValue} from mixedDP2reporting device, <b>set target was ${state.target}</b>")
+            				logWarn "parse (02): received target ${dataValue} from mixedDP2reporting device, <b>set target was ${state.target}</b>"
                         }
                         state.isTargetRcvd = true
                     }
                     else {
-                        logTrace("parse (02): reveived current position ${dataValue} from mixedDP2reporting device")
+                        logDebug "parse (02): reveived current position ${dataValue} from mixedDP2reporting device"
         				logDebug("parse (02): moved to position ${dataValue}")
         				updateWindowShadeMoving(dataValue)
         				updatePosition(dataValue)
@@ -545,7 +544,7 @@ def parseSetDataResponse(descMap) {
                 }
 			} 
             else {
-				logUnexpectedMessage("parse (02): Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}")
+				logWarn "parse (02): Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}"
 			}
 			break
 		
@@ -568,7 +567,7 @@ def parseSetDataResponse(descMap) {
     				updateWindowShadeArrived(dataValue)
     				updatePosition(dataValue)
     			} else {
-    				logUnexpectedMessage("parse (03): Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
+    				logWarn "parse (03): Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}"
     			}
             }
 			break
@@ -582,12 +581,12 @@ def parseSetDataResponse(descMap) {
 				logDebug("parse (05): Motor Direction=${directionText}")
 				updateDirection(dataValue)
 			} else {
-				logUnexpectedMessage("parse (05): Unexpected DP_ID_DIRECTION dataValue=${dataValue}")
+				logWarn "parse (05): Unexpected DP_ID_DIRECTION dataValue=${dataValue}"
 			}
 			break
         
         case 0x06: // 0x06: Arrived at destination (with fncmd==0)
-            logUnexpectedMessage("parse (06): Arrived at destination (dataValue==${dataValue})")
+            logDebug "parse (06): Arrived at destination (dataValue==${dataValue})"
 			break		
         
 		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command / work_state  (or Moes Curtain switch Backlight?)
@@ -606,7 +605,7 @@ def parseSetDataResponse(descMap) {
     				logDebug("parse (07): closing from remote")
     				updateWindowShadeClosing()
     			} else {
-    				logUnexpectedMessage("parse (07): Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}")
+    				logWarn "parse (07): Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}"
     			}
                 restartPositionReportTimeout()
             }
@@ -632,7 +631,7 @@ def parseSetDataResponse(descMap) {
 				logDebug("parse (13): battery=${dataValue}")
 				updateBattery(dataValue)
 			} else {
-				logUnexpectedMessage("parse (13): Unexpected DP_ID_BATTERY dataValue=${dataValue}")
+				logWarn "parse (13): Unexpected DP_ID_BATTERY dataValue=${dataValue}"
 			}
 			break
         
@@ -658,7 +657,7 @@ def parseSetDataResponse(descMap) {
 				logDebug("parse (101): mode=${modeText}")
 				updateMode(dataValue)
 			} else {
-				logUnexpectedMessage("parse: Unexpected DP_ID_MODE dataValue=${dataValue}")
+				logWarn "parse: Unexpected DP_ID_MODE dataValue=${dataValue}"
 			}
 			break
         
@@ -679,7 +678,7 @@ def parseSetDataResponse(descMap) {
     				logDebug("parse (105): speed=${dataValue}")
     				updateSpeed(dataValue)
     			} else {
-    				logUnexpectedMessage("parse (105): Unexpected DP_ID_SPEED dataValue=${dataValue}")
+    				logWarn "parse (105): Unexpected DP_ID_SPEED dataValue=${dataValue}"
     			}
             }
 			break
@@ -689,7 +688,7 @@ def parseSetDataResponse(descMap) {
             break
 			
 		default:
-			logUnexpectedMessage("parse: Unknown DP_ID dp=0x${data[2]}, dataType=0x${data[3]} dataValue=${dataValue}")
+			logWarn "parse: Unknown DP_ID dp=0x${data[2]}, dataType=0x${data[3]} dataValue=${dataValue}"
 			break
 	}
 }
@@ -712,7 +711,7 @@ private ignorePositionReport(position) {
 	def lastPosition = device.currentValue("position") ?: "undefined"
 	logDebug("ignorePositionReport: position=${position}, lastPosition=${lastPosition}")
 	if (lastPosition == "undefined" || isWithinOne(position)) {
-		logTrace("Ignore invalid reports")
+		logDebug "Ignore invalid reports"
 		return true
 	}
 	return false
@@ -721,10 +720,10 @@ private ignorePositionReport(position) {
 private isWithinOne(position) {
 	def lastPosition = device.currentValue("position") ?: "undefined"
 	if (lastPosition != "undefined" && Math.abs(position - lastPosition) <= 1) {
-    	logTrace("isWithinOne:true (position=${position}, lastPosition=${lastPosition})")
+    	logDebug "isWithinOne:true (position=${position}, lastPosition=${lastPosition})"
 		return true
 	}
- 	logTrace("isWithinOne:false (position=${position}, lastPosition=${lastPosition})")
+ 	logDebug "isWithinOne:false (position=${position}, lastPosition=${lastPosition})"
 	return false
 }
 
@@ -745,7 +744,7 @@ private updateMode(modeValue) {
 }
 
 private updatePosition( position ) {
-	logTrace "updatePosition(): position=${position}"
+	logDebug "updatePosition(): position=${position}"
 	sendEvent(name: "position", value: position, unit: "%")
 	sendEvent(name: "level", value: position, unit: "%")
     if (position <= maxClosedPosition) {
@@ -762,7 +761,7 @@ private updatePosition( position ) {
 }
 
 private updatePresence(present) {
-	//logTrace("updatePresence: present=${present}")
+	//logDebug "updatePresence: present=${present}"
 	if (present) {
 		state.lastHeardMillis = now()
 		checkHeartbeat()
@@ -793,7 +792,7 @@ private updateWindowShadeMoving(position) {
 }
 
 private updateWindowShadeOpening() {
-	logTrace "updateWindowShadeOpening()"
+	logDebug "updateWindowShadeOpening()"
     if ((device.currentValue("windowShade") ?: "undefined") != "opening") {
 	    sendEvent(name:"windowShade", value: "opening")
         logInfo "is opening"
@@ -801,7 +800,7 @@ private updateWindowShadeOpening() {
 }
 
 private updateWindowShadeClosing() {
-	logTrace "updateWindowShadeClosing()"
+	logDebug "updateWindowShadeClosing()"
     if ((device.currentValue("windowShade") ?: "undefined") != "closing") {
     	sendEvent(name:"windowShade", value: "closing")
         logInfo "is closing"
@@ -809,7 +808,7 @@ private updateWindowShadeClosing() {
 }
 
 private updateWindowShadeUndefined() {
-	logTrace "updateWindowShadeUndefined()"
+	logDebug "updateWindowShadeUndefined()"
     if ((device.currentValue("windowShade") ?: "undefined") != "moving") {
 	    sendEvent(name:"windowShade", value: "moving")
         logInfo "is moving"
@@ -853,7 +852,7 @@ private updateWindowShadeArrived( position=null ) {
 
 def refresh()
 {
-	logTrace "Refresh called..."
+	logDebug "Refresh called..."
 	zigbee.onOffRefresh()
 }
 
@@ -980,7 +979,7 @@ def restartPositionReportTimeout() {
 }
 
 def stopPositionReportTimeout() {
-    logTrace "stopPositionReportTimeout(): unscheduling endOfMovement timer"
+    logDebug "stopPositionReportTimeout(): unscheduling endOfMovement timer"
     unschedule(endOfMovement)
 }
 
@@ -1019,7 +1018,7 @@ def setSpeed(speed) {
 }
 
 def push(buttonNumber)		{
-	logTrace("push: buttonNumber=${buttonNumber}")
+	logDebug "push: buttonNumber=${buttonNumber}"
 	sendEvent(name: "pushed", value: buttonNumber, isStateChange: true)
 	switch(buttonNumber) {
 		case 1:
@@ -1059,7 +1058,7 @@ private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
 	def dpHex = zigbee.convertToHexString(dp, 2)
 	def dpTypeHex = zigbee.convertToHexString(dpType, 2)
 	def fnCmdHex = zigbee.convertToHexString(fnCmd, fnCmdLength)
-	logTrace "sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}"
+	logDebug "sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}"
 	def message = (randomPacketId().toString()
 				   + dpHex
 				   + dpTypeHex
@@ -1074,13 +1073,13 @@ private randomPacketId() {
 
 // Must be non-private to use runInMillis
 def checkForResponse() {
-	//logTrace("checkForResponse: waitingForResponseSinceMillis=${state.waitingForResponseSinceMillis}")
+	//logDebug "checkForResponse: waitingForResponseSinceMillis=${state.waitingForResponseSinceMillis}"
 	if (state.waitingForResponseSinceMillis == null) {
 		return null
 	}
 	def waitMillis = (CHECK_FOR_RESPONSE_INTERVAL_SECONDS * 1000
 			- (now() - state.waitingForResponseSinceMillis))
-	//logTrace("checkForResponse: waitMillis=${waitMillis}")
+	//logDebug "checkForResponse: waitMillis=${waitMillis}"
 	if (waitMillis <= 0) {
 		updatePresence(false)
 	} else {
@@ -1092,7 +1091,7 @@ def checkForResponse() {
 def checkHeartbeat() {
 	def waitMillis = (HEARTBEAT_INTERVAL_SECONDS * 1000
 			- (now() - state.lastHeardMillis))
-	//logTrace("checkHeartbeat: waitMillis=${waitMillis}")
+	//logDebug "checkHeartbeat: waitMillis=${waitMillis}"
 	if (waitMillis <= 0) {
 		updatePresence(false)
 	} else {
@@ -1114,21 +1113,30 @@ private logDebug(text) {
 	log.debug "${device.displayName} " + text
 }
 
+/*
 private logTrace(text) {
 	if (!enableTraceLog) {
 		return
 	}
 	log.trace"${device.displayName} " + text
 }
+*/
 
-private logWarn(text) {logUnexpectedMessage(text)}
+private logWarn(text) {
+	if (!enableDebugLog) {
+		return
+	}
+	log.warn "${device.displayName} " + text
+}
 
+/*
 private logUnexpectedMessage(text) {
 	if (!enableUnexpectedMessageLog) {
 		return
 	}
 	log.warn "${device.displayName} " + text
 }
+*/
 
 Integer safeToInt(val, Integer defaultVal=0) {
 	return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
