@@ -48,7 +48,7 @@
  *
  * 3.3.0 (2022-12-30) [kkossev]   - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; ZM85 _TZE200_cf1sl3tj support, including calibration;
  * 3.3.1 (2023-03-09) [kkossev]   - added _TZE200_hsgrhjpf
- * 3.3.2 (2023-08-10) [kkossev]   - (dev. branch) replaced some warnings with debug level logs; removed "enable trace logging" and logUnexpectedMessage options
+ * 3.3.2 (2023-08-10) [kkossev]   - replaced some warnings with debug level logs; removed 'enable trace logging' and 'log Unexpected Messages' options;
  *
  *
  *                                TODO: evaluate whether adding retries for setPos is possible : https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525/371?u=kkossev
@@ -60,7 +60,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.2 - 2023-08-10 5:18 PM (debug version)"
+	return "3.3.2 - 2023-08-10 5:18 PM"
 }
 
 private def textCopyright() {
