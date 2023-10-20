@@ -1,14 +1,14 @@
 /**
  *  Copyright 2021, 2022
  *
- *	Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *	in compliance with the License. You may obtain a copy of the License at:
+ *    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *    in compliance with the License. You may obtain a copy of the License at:
  *
- *		http://www.apache.org/licenses/LICENSE-2.0
+ *        http://www.apache.org/licenses/LICENSE-2.0
  *
- *	Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *	on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *	for the specific language governing permissions and limitations under the License.
+ *    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *    on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *    for the specific language governing permissions and limitations under the License.
  *
  * This DTH is coded based on iquix's tuya-window-shade DTH and these other files:
  * https://github.com/iquix/Smartthings/blob/master/devicetypes/iquix/tuya-window-shade.src/tuya-window-shade.groovy
@@ -19,18 +19,11 @@
  * VERSION HISTORY
  *                                  
  * 1.0.0 (2021-03-09) [Amos Yuen] - Initial Commit
- * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position
- *			to open/close all the way.
- *		- Rename pause() to stop()
- *		- Remove superfluous setDirection() setMode() functions
- * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability
- *		- Add configurable close and open position thresholds
- * 2.2.0 (2021-06-06) [Amos Yuen] - Add commands for stepping
- *       - Fix push command not sending zigbee commands
- * 2.3.0 (2021-06-09) [Amos Yuen] - Add presence attribute to indicate whether device is responsive
- * 3.0.0 (2021-06-18) [Amos Yuen] - Support new window shade command startPositionChange()
- *		- Rename stop() to stopPositionChange()
- *		- Handle ack and set time zigbee messages
+ * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position to open/close all the way.; Rename pause() to stop(); Remove superfluous setDirection() setMode() functions
+ * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability Add configurable close and open position thresholds
+ * 2.2.0 (2021-06-06) [Amos Yuen] - Add commands for stepping; Fix push command not sending zigbee commands
+ * 2.3.0 (2021-06-09) [Amos Yuen] - Add presence attribute to indicate whether device is responsive; 
+ * 3.0.0 (2021-06-18) [Amos Yuen] - Support new window shade command startPositionChange(); Rename stop() to stopPositionChange(); Handle ack and set time zigbee messages
  * 3.1.0 (2022-04-07) [kkossev]   - added new devices fingerprints; blind position reporting; Tuya time synchronization;  
  * 3.1.1 (2022-04-26) [kkossev]   - added more TS0601 fingerprints; atomicState bug fix; added invertPosition option; added 'SwitchLevel' capability (Alexa); added POSITION_UPDATE_TIMEOUT timer
  * 3.1.2 (2022-04-30) [kkossev]   - added AdvancedOptions; positionReportTimeout as preference parameter; added Switch capability; commands Open/Close/Stop differ depending on the model/manufacturer
@@ -49,8 +42,10 @@
  * 3.3.0 (2022-12-30) [kkossev]   - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; ZM85 _TZE200_cf1sl3tj support, including calibration;
  * 3.3.1 (2023-03-09) [kkossev]   - added _TZE200_hsgrhjpf
  * 3.3.2 (2023-08-10) [kkossev]   - replaced some warnings with debug level logs; removed 'enable trace logging' and 'log Unexpected Messages' options;
+ * 3.3.3 (2023-10-20) [kkossev]   - (dev. branch) _TZE200_zah67ekd checks; code reformatting; 
  *
  *
+ *                                TODO: TS130F _TZ3000_1dd0d5yi
  *                                TODO: evaluate whether adding retries for setPos is possible : https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525/371?u=kkossev
  */
 
@@ -60,39 +55,39 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "3.3.2 - 2023-08-10 5:18 PM"
+    return "3.3.3 - 2023-10-20 8:36 PM"
 }
 
 private def textCopyright() {
-	return "Copyright ©2021-2023\nAmos Yuen, kkossev, iquix, ShinJjang"
+    return "Copyright ©2021-2023\nAmos Yuen, kkossev, iquix, ShinJjang"
 }
 
 metadata {
-	definition(name: "ZemiSmart Zigbee Blind", namespace: "amosyuen", author: "Amos Yuen", importUrl: "https://raw.githubusercontent.com/amosyuen/hubitat-zemismart-zigbee/development/Zemismart%20Zigbee%20Blind.groovy", singleThreaded: true ) {
-		capability "Actuator"
-		capability "Configuration"
-		capability "PresenceSensor"
-		capability "PushableButton"
-		capability "WindowShade"
+    definition(name: "ZemiSmart Zigbee Blind", namespace: "amosyuen", author: "Amos Yuen", importUrl: "https://raw.githubusercontent.com/amosyuen/hubitat-zemismart-zigbee/development/Zemismart%20Zigbee%20Blind.groovy", singleThreaded: true ) {
+        capability "Actuator"
+        capability "Configuration"
+        capability "PresenceSensor"
+        capability "PushableButton"
+        capability "WindowShade"
         capability "Switch"
         capability "SwitchLevel"
         capability "Battery"
 
-		attribute "speed", "integer"
+        attribute "speed", "integer"
 
-		command "push", [[name: "button number*", type: "NUMBER", description: "1: Open, 2: Close, 3: Stop, 4: Step Open, 5: Step Close"]]
-		command "stepClose", [[name: "step", type: "NUMBER", description: "Amount to change position towards close. Defaults to defaultStepAmount if not set."]]
-		command "stepOpen", [[name: "step",	type: "NUMBER",	description: "Amount to change position towards open. Defaults to defaultStepAmount if not set."]]
-		command "setSpeed", [[name: "speed*", type: "NUMBER", description: "Motor speed (0 to 100). Values below 5 may not work."]]
+        command "push", [[name: "button number*", type: "NUMBER", description: "1: Open, 2: Close, 3: Stop, 4: Step Open, 5: Step Close"]]
+        command "stepClose", [[name: "step", type: "NUMBER", description: "Amount to change position towards close. Defaults to defaultStepAmount if not set."]]
+        command "stepOpen", [[name: "step",    type: "NUMBER",    description: "Amount to change position towards open. Defaults to defaultStepAmount if not set."]]
+        command "setSpeed", [[name: "speed*", type: "NUMBER", description: "Motor speed (0 to 100). Values below 5 may not work."]]
         command "calibrate", [
                 [name:"cmd", type: "ENUM", description: "command", constraints: (settableParsMap.keySet() as List)],
                 [name:"val", type: "STRING", description: "preference parameter value", constraints: ["STRING"]]
         ]        
 
-		fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"mcdj3aq",manufacturer:"_TYST11_wmcdj3aq", deviceJoinName: "Zemismart Zigbee Blind"             // direction is reversed ? // Stop and Close inverted or not?
-		fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"owvfni3",manufacturer:"_TYST11_cowvfr",   deviceJoinName: "Zemismart Zigbee Curtain Motor"
-		fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"??????", manufacturer:"_TZE200_zah67ekd", deviceJoinName: "Zemismart Zigbee Blind"
-		fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_zah67ekd", deviceJoinName: "Zemismart Zigbee Blind Motor"            // AM43-0.45/40-ES-EZ
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"mcdj3aq",manufacturer:"_TYST11_wmcdj3aq", deviceJoinName: "Zemismart Zigbee Blind"             // direction is reversed ? // Stop and Close inverted or not?
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"owvfni3",manufacturer:"_TYST11_cowvfr",   deviceJoinName: "Zemismart Zigbee Curtain Motor"
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019",      model:"??????", manufacturer:"_TZE200_zah67ekd", deviceJoinName: "Zemismart Zigbee Blind"
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_zah67ekd", deviceJoinName: "Zemismart Zigbee Blind Motor"            // AM43-0.45/40-ES-EZ
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_xuzcvlku" ,deviceJoinName: "Zemismart Zigbee Blind Motor M515EGBZTN"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_gubdgai2" ,deviceJoinName: "Zemismart Zigbee Blind Motor M515EGBZTN" 
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_iossyxra" ,deviceJoinName: "Zemismart Tubular Roller Blind Motor AM15" 
@@ -133,38 +128,29 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_ke7pzj5d" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
         // 
         // defaults are :  open: 0, stop: 1,  close: 2   
-	}
+    }
 
-	preferences {
-		input("mode", "enum", title: "Mode",
-			description: "<li><b>lift</b> - motor moves until button pressed again</li>"
-					+ "<li><b>tilt</b> - pressing button < 1.5s, movement stops on release"
-					+ "; pressing button > 1.5s, motor moves until button pressed again</li>",
-			options: MODE_MAP, required: true, defaultValue: "1")
-		input("direction", "enum", title: "Direction",
-			options: DIRECTION_MAP, required: true, defaultValue: 0)
-		input("maxClosedPosition", "number", title: "Max Closed Position",
-			description: "The max position value that window shade state should be set to closed",
-			required: true, defaultValue: 1)
-		input("minOpenPosition", "number", title: "Min Open Position",
-			description: "The min position value that window shade state should be set to open",
-			required: true, defaultValue: 99)
-		input("defaultStepAmount", "number", title: "Default Step Amount",
-			description: "The default step amount",
-			required: true, defaultValue: 5)
-		input("enableInfoLog", "bool", title: "Enable descriptionText logging", required: true, defaultValue: true)
-		input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
-		input("advancedOptions", "bool", title: "Show Advanced options", description: "These advanced options should have been already set correctly for your device/model when device was Configred", required: true, defaultValue: false)
+    preferences {
+        input("mode", "enum", title: "Mode",
+            description: "<li><b>lift</b> - motor moves until button pressed again</li>"
+                    + "<li><b>tilt</b> - pressing button < 1.5s, movement stops on release"
+                    + "; pressing button > 1.5s, motor moves until button pressed again</li>",
+            options: MODE_MAP, required: true, defaultValue: "1")
+        input("direction", "enum", title: "Direction", options: DIRECTION_MAP, required: true, defaultValue: 0)
+        input("maxClosedPosition", "number", title: "Max Closed Position", description: "The max position value that window shade state should be set to closed", required: true, defaultValue: 1)
+        input("minOpenPosition", "number", title: "Min Open Position", description: "The min position value that window shade state should be set to open", required: true, defaultValue: 99)
+        input("defaultStepAmount", "number", title: "Default Step Amount", description: "The default step amount", required: true, defaultValue: 5)
+        input("enableInfoLog", "bool", title: "Enable descriptionText logging", required: true, defaultValue: true)
+        input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
+        input("advancedOptions", "bool", title: "Show Advanced options", description: "These advanced options should have been already set correctly for your device/model when device was Configred", required: true, defaultValue: false)
         if (advancedOptions == true) {
-    		//input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
-	    	//input("enableUnexpectedMessageLog", "bool", title: "Log unexpected messages", required: true, defaultValue: false)   
-    		input ("invertPosition", "bool", title: "Invert position reporting", description: "Some devices report the position 0..100 inverted", required: true, defaultValue: false)
-    		input ("mixedDP2reporting", "bool", title: "Ignore the first Position report",  description: "Some devices report both the Target and the Current positions the same way", required: true, defaultValue: false)
-    		input ("substituteOpenClose", "bool", title: "Substitute Open/Close commands with SetPosition",  description: "Turn this option on if your motor does not work in 'lift' mode", required: true, defaultValue: false)
-    		input ("positionReportTimeout", "number", title: "Position report timeout, ms", description: "The maximum time between position reports", required: true, defaultValue: POSITION_UPDATE_TIMEOUT)
-    		input ("forcedTS130F", "bool", title: "Force TS130F Model",  description: "Force TS130F model if Data section shows endpointId: <b>F2</b>", required: true, defaultValue: false)
+            input ("invertPosition", "bool", title: "Invert position reporting", description: "Some devices report the position 0..100 inverted", required: true, defaultValue: false)
+            input ("mixedDP2reporting", "bool", title: "Ignore the first Position report",  description: "Some devices report both the Target and the Current positions the same way", required: true, defaultValue: false)
+            input ("substituteOpenClose", "bool", title: "Substitute Open/Close commands with SetPosition",  description: "Turn this option on if your motor does not work in 'lift' mode", required: true, defaultValue: false)
+            input ("positionReportTimeout", "number", title: "Position report timeout, ms", description: "The maximum time between position reports", required: true, defaultValue: POSITION_UPDATE_TIMEOUT)
+            input ("forcedTS130F", "bool", title: "Force TS130F Model",  description: "Force TS130F model if Data section shows endpointId: <b>F2</b>", required: true, defaultValue: false)
         }
-	}
+    }
 }
 
 @Field final String MODE_TILT = "0"
@@ -191,6 +177,7 @@ metadata {
 def getModel() { settings?.forcedTS130F == true ? "TS130F" : device.getDataValue('model') }
 def isTS130F() { getModel() == "TS130F" }
 def isZM85EL() { device.getDataValue("manufacturer") in ["_TZE200_cf1sl3tj"] }
+def isAM43()   { device.getDataValue("manufacturer") in ["_TZE200_zah67ekd"] }
 
 def isCurtainMotor() {
     def manufacturer = device.getDataValue("manufacturer")
@@ -258,29 +245,29 @@ def getPositionReportTimeout() { isZM85EL() ? 15000 : POSITION_UPDATE_TIMEOUT }
 //
 
 def installed() {
-	configure()
+    configure()
 }
 
 // This method is called when the preferences of a device are updated.
 def updated() {
-	configure(fullInit = false)
+    configure(fullInit = false)
     logDebug("updated ${device.displayName} model=${getModel()} manufacturer=${device.getDataValue('manufacturer')}")
 }
 
 def configure(boolean fullInit = true) {
-	state.version = textVersion()
-	state.copyright = textCopyright()
+    state.version = textVersion()
+    state.copyright = textCopyright()
 
-	if (state.lastHeardMillis == null) 	state.lastHeardMillis = 0 
-	if (state.target == null || state.target <0 || state.target >100) 	state.target = 0 
+    if (state.lastHeardMillis == null)     state.lastHeardMillis = 0 
+    if (state.target == null || state.target <0 || state.target >100)     state.target = 0 
     state.isTargetRcvd = false
 
-	sendEvent(name: "numberOfButtons", value: 5)
+    sendEvent(name: "numberOfButtons", value: 5)
     unschedule()    // added 2022/12/10
 
-	// Must run async otherwise, one will block the other
-	runIn(1, setMode)
-	runIn(2, setDirection)
+    // Must run async otherwise, one will block the other
+    runIn(1, setMode)
+    runIn(2, setDirection)
 
     if (settings.enableInfoLog == null || fullInit == true) device.updateSetting("enableInfoLog", [value: true, type: "bool"]) 
     if (settings.advancedOptions == null || fullInit == true) device.updateSetting("advancedOptions", [value: false, type: "bool"]) 
@@ -298,18 +285,18 @@ def configure(boolean fullInit = true) {
         logDebug "isZM85EL() = ${isZM85EL()}"
     }
     
-	if (settings?.maxClosedPosition < 0 || settings?.maxClosedPosition > 100) {
-		throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
-			+ " 0 and 100 inclusive.")
-	}
-	if (settings?.minOpenPosition < 0 || settings?.minOpenPosition > 100) {
-		throw new Exception("Invalid minOpenPosition \"${minOpenPosition}\" should be between 0"
-			+ " and 100 inclusive.")
-	}
-	if (settings?.maxClosedPosition >= settings?.minOpenPosition) {
-		throw new Exception("maxClosedPosition \"${minOpenPosition}\" must be less than"
-			+ " minOpenPosition \"${minOpenPosition}\".")
-	}
+    if (settings?.maxClosedPosition < 0 || settings?.maxClosedPosition > 100) {
+        throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
+            + " 0 and 100 inclusive.")
+    }
+    if (settings?.minOpenPosition < 0 || settings?.minOpenPosition > 100) {
+        throw new Exception("Invalid minOpenPosition \"${minOpenPosition}\" should be between 0"
+            + " and 100 inclusive.")
+    }
+    if (settings?.maxClosedPosition >= settings?.minOpenPosition) {
+        throw new Exception("maxClosedPosition \"${minOpenPosition}\" must be less than"
+            + " minOpenPosition \"${minOpenPosition}\".")
+    }
     
     
     logInfo("${device.displayName} configured : model=${getModel()} manufacturer=${device.getDataValue('manufacturer')}")
@@ -318,17 +305,17 @@ def configure(boolean fullInit = true) {
 
 def setDirection() {
     if (settings?.direction != null) {
-	    def directionValue = direction as int
-	    logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
-	    sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, directionValue, 2)
+        def directionValue = direction as int
+        logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
+        sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, directionValue, 2)
     }
 }
 
 def setMode() {
     if (settings?.mode != null) {
-	    def modeValue = mode as int
-	    logDebug("setMode: modeText=${MODE_MAP[modeValue].value}, modeValue=${modeValue}")
-	    sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
+        def modeValue = mode as int
+        logDebug("setMode: modeText=${MODE_MAP[modeValue].value}, modeValue=${modeValue}")
+        sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
     }
 }
 
@@ -365,46 +352,46 @@ def setMode() {
 @Field final int DP_COMMAND_CUSTOM = 0x06
 
 def parse(String description) {
-	if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
-		logWarn "parse: Unhandled description=${description}"
-		return null
-	}
-	updatePresence(true)
-	Map descMap = zigbee.parseDescriptionAsMap(description)
-	if (descMap.clusterInt != CLUSTER_TUYA) {
+    if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
+        logWarn "parse: Unhandled description=${description}"
+        return null
+    }
+    updatePresence(true)
+    Map descMap = zigbee.parseDescriptionAsMap(description)
+    if (descMap.clusterInt != CLUSTER_TUYA) {
         parseNonTuyaMessage( descMap )
-		return null
-	}
-	def command = zigbee.convertHexToInt(descMap.command)
-	switch (command) {
-		case ZIGBEE_COMMAND_SET_DATA_RESPONSE: // 0x02
+        return null
+    }
+    def command = zigbee.convertHexToInt(descMap.command)
+    switch (command) {
+        case ZIGBEE_COMMAND_SET_DATA_RESPONSE: // 0x02
         case ZIGBEE_COMMAND_REPORTING : // 0x01
-			if (!descMap?.data || descMap.data.size() < 7) {
+            if (!descMap?.data || descMap.data.size() < 7) {
                 logWarn "parse: Invalid data size for SET_DATA_RESPONSE descMap=${descMap}"
-				return null
-			}
-			parseSetDataResponse(descMap)
-			break
-		case ZIGBEE_COMMAND_ACK: // 0x0B
-			if (!descMap?.data || descMap.data.size() < 2) {
-				logWarn "parse: Invalid data size for ACK descMap=${descMap}"
-				return null
-			}
+                return null
+            }
+            parseSetDataResponse(descMap)
+            break
+        case ZIGBEE_COMMAND_ACK: // 0x0B
+            if (!descMap?.data || descMap.data.size() < 2) {
+                logWarn "parse: Invalid data size for ACK descMap=${descMap}"
+                return null
+            }
             logDebug "parse: ACK command=${descMap.data[0]}"
-			break
+            break
         case 0x10 : // TUYA_MCU_VERSION_REQ 
             logDebug "Tuya MCU Version Request : ${descMap?.data}"
             break
         case 0x11 : // TUYA_MCU_VERSION_RSP
             logDebug "Tuya MCU Version Respinse : ${descMap?.data}"
             break
-		case ZIGBEE_COMMAND_SET_TIME: // 0x24
+        case ZIGBEE_COMMAND_SET_TIME: // 0x24
             processTuyaSetTime()
-			break
-		default:
-			logWarn "parse: Unhandled command=${command} descMap=${descMap}"
-			break
-	}
+            break
+        default:
+            logWarn "parse: Unhandled command=${command} descMap=${descMap}"
+            break
+    }
 }
 
 def parseNonTuyaMessage( descMap ) {
@@ -426,8 +413,8 @@ def parseNonTuyaMessage( descMap ) {
                     def dataValue = zigbee.convertHexToInt(descMap?.value)
                     logInfo "WindowCovering cluster ${descMap?.cluster} attribute CurrentPositionLiftPercentage ${descMap?.attrId} value : ${dataValue}"
                     restartPositionReportTimeout()
-    				updateWindowShadeArrived(dataValue)
-    				updatePosition(dataValue)
+                    updateWindowShadeArrived(dataValue)
+                    updatePosition(dataValue)
                 }
                 else if (descMap?.attrId == "F000") {   
                     def val = zigbee.convertHexToInt(descMap?.value)
@@ -489,34 +476,34 @@ def parseNonTuyaMessage( descMap ) {
  * https://developer.tuya.com/en/docs/iot-device-dev/zigbee-curtain-switch-access-standard?id=K9ik6zvra3twv
  */
 def parseSetDataResponse(descMap) {
-	logDebug "parse: descMap=${descMap}"
-	def data = descMap.data
-	def dp = zigbee.convertHexToInt(data[2])
-	def dataValue = zigbee.convertHexToInt(data[6..-1].join())
-	switch (dp) {
-		case DP_ID_COMMAND: // 0x01 Command
+    logDebug "parse: descMap=${descMap}"
+    def data = descMap.data
+    def dp = zigbee.convertHexToInt(data[2])
+    def dataValue = zigbee.convertHexToInt(data[6..-1].join())
+    switch (dp) {
+        case 0x01 :      // DP_ID_COMMAND
             restartPositionReportTimeout()
             if (dataValue == getDpCommandOpen()) {        // OPEN - typically 0x00
                 logDebug("parse (01): opening (DP=1, data=${dataValue})")
-				updateWindowShadeOpening()
+                updateWindowShadeOpening()
             }
             else if (dataValue == getDpCommandStop()) {    // STOP - typically 0x01
-				logDebug("parse (01): stopping (DP=1, data=${dataValue})")
+                logDebug("parse (01): stopping (DP=1, data=${dataValue})")
             }
             else if (dataValue == getDpCommandClose()) {   // CLOSE - typically 0x02
-				logDebug("parse (01): closing (DP=1, data=${dataValue})")
-				updateWindowShadeClosing()
+                logDebug("parse (01): closing (DP=1, data=${dataValue})")
+                updateWindowShadeClosing()
             }
             else if (dataValue == DP_COMMAND_CONTINUE) {   // CONTINUE - 0x03
-				logDebug("parse (01): continuing (DP=1, data=${dataValue})")
+                logDebug("parse (01): continuing (DP=1, data=${dataValue})")
             }
             else {
-				logWarn "parse (01): Unexpected DP_ID_COMMAND dataValue=${dataValue}"
+                logWarn "parse (01): Unexpected DP_ID_COMMAND dataValue=${dataValue}"
             }
             break
-		
-		case DP_ID_TARGET_POSITION: // 0x02 Target position    // for M515EGBZTN blinds models - this is ALSO the actual/current position !
-			if (dataValue >= 0 && dataValue <= 100) {
+        
+        case 0x02 :     // DP_ID_TARGET_POSITION:   // for M515EGBZTN blinds models - this is ALSO the actual/current position !
+            if (dataValue >= 0 && dataValue <= 100) {
                 if ( invertPosition == true ) {
                     dataValue = 100 - dataValue
                 }
@@ -527,170 +514,174 @@ def parseSetDataResponse(descMap) {
                             logDebug("parse (02): received target ${dataValue} from mixedDP2reporting device")
                         }
                         else {
-            				logWarn "parse (02): received target ${dataValue} from mixedDP2reporting device, <b>set target was ${state.target}</b>"
+                            logWarn "parse (02): received target ${dataValue} from mixedDP2reporting device, <b>set target was ${state.target}</b>"
                         }
                         state.isTargetRcvd = true
                     }
                     else {
                         logDebug "parse (02): reveived current position ${dataValue} from mixedDP2reporting device"
-        				logDebug("parse (02): moved to position ${dataValue}")
-        				updateWindowShadeMoving(dataValue)
-        				updatePosition(dataValue)
+                        logDebug("parse (02): moved to position ${dataValue}")
+                        updateWindowShadeMoving(dataValue)
+                        updatePosition(dataValue)
                     }
                 }
                 else {                                        // for all other models - this is the Target position 
                     logDebug("parse (02): received target ${dataValue}")
                     state.isTargetRcvd = true
                 }
-			} 
+            } 
             else {
-				logWarn "parse (02): Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}"
-			}
-			break
-		
-		case DP_ID_CURRENT_POSITION: // 0x03 Current Position or Moes Cover Calibration
+                logWarn "parse (02): Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}"
+            }
+            break
+        
+        case 0x03 :     // DP_ID_CURRENT_POSITION:  Current Position or Moes Cover Calibration
             if (isMoesCoverSwitch()) {
                 logDebug("parse (03): Moes Cover Calibration DP ${dp} value = ${dataValue}")
             }
             else {
-    			if (dataValue >= 0 && dataValue <= 100) {
+                if (dataValue >= 0 && dataValue <= 100) {
                     if ( invertPosition == true ) {
                         dataValue = 100 - dataValue
                     }
-    				logDebug("parse (03): arrived at position ${dataValue}")    // for AM43 and ZM85 this is received just once, when arrived at the destination point!
+                    logDebug("parse (03): arrived at position ${dataValue}")    // for AM43 and ZM85 this is received just once, when arrived at the destination point!
                     if (isZM85EL()) {
                         stopPositionReportTimeout()
                     }
                     else { // TODO - same filtering for AM43 !
                         restartPositionReportTimeout()
                     }
-    				updateWindowShadeArrived(dataValue)
-    				updatePosition(dataValue)
-    			} else {
-    				logWarn "parse (03): Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}"
-    			}
+                    updateWindowShadeArrived(dataValue)
+                    updatePosition(dataValue)
+                } else {
+                    logWarn "parse (03): Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}"
+                }
             }
-			break
-        case 0x04 : // working mode {“range”:[“morning”,“night”],“type”:“enum”}
+            break
+        case 0x04 :     // working mode {“range”:[“morning”,“night”],“type”:“enum”}
             logDebug("parse (04): isZM85EL=${isZM85EL()} mode = ${ZM85EL_MODE[dataValue as int]} (value = ${dataValue})")
             break
-		
-		case DP_ID_DIRECTION: // 0x05 Motor Direction (0-forward 1-backward), enum
-			def directionText = DIRECTION_MAP[dataValue]
-			if (directionText != null) {
-				logDebug("parse (05): Motor Direction=${directionText}")
-				updateDirection(dataValue)
-			} else {
-				logWarn "parse (05): Unexpected DP_ID_DIRECTION dataValue=${dataValue}"
-			}
-			break
         
-        case 0x06: // 0x06: Arrived at destination (with fncmd==0)
+        case 0x05 :     //DP_ID_DIRECTION:  Motor Direction (0-forward 1-backward), enum
+            def directionText = DIRECTION_MAP[dataValue]
+            if (directionText != null) {
+                logDebug("parse (05): Motor Direction=${directionText}")
+                updateDirection(dataValue)
+            } else {
+                logWarn "parse (05): Unexpected DP_ID_DIRECTION dataValue=${dataValue}"
+            }
+            break
+        
+        case 0x06:      // 0x06: Arrived at destination (with fncmd==0)
             logDebug "parse (06): Arrived at destination (dataValue==${dataValue})"
-			break		
+            break        
         
-		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command / work_state  (or Moes Curtain switch Backlight?)
+        case 0x07 :     //DP_ID_COMMAND_REMOTE: Remote Command / work_state  (or Moes Curtain switch Backlight?)
             if (isMoesCoverSwitch()) {
                 logDebug("parse (07): Moes Curtain switch Backlight DP ${dp} value = ${dataValue}")            
             }
             else if (isZM85EL()) {
                 logDebug("parse (07): moving from ZM85 up/down keys (data=${dataValue})")
-    			updateWindowShadeUndefined()
+                updateWindowShadeUndefined()
             }
             else {
-    			if (dataValue == 0) {
-    				logDebug("parse (07): opening from remote")
-    				updateWindowShadeOpening()
-    			} else if (dataValue == 1) {
-    				logDebug("parse (07): closing from remote")
-    				updateWindowShadeClosing()
-    			} else {
-    				logWarn "parse (07): Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}"
-    			}
+                if (dataValue == 0) {
+                    logDebug("parse (07): opening from remote")
+                    updateWindowShadeOpening()
+                } else if (dataValue == 1) {
+                    logDebug("parse (07): closing from remote")
+                    updateWindowShadeClosing()
+                } else {
+                    logWarn "parse (07): Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}"
+                }
                 restartPositionReportTimeout()
             }
-    		break
-        case 0x08: // also, for unknown curtain motors : Countdown  {“range”:[“cancel”,“1h”,“2h”,“3h”,“4h”],“type”:“enum”}
+            break
+        case 0x08:      // also, for unknown curtain motors : Countdown  {“range”:[“cancel”,“1h”,“2h”,“3h”,“4h”],“type”:“enum”}
             logDebug("parse (08): Moes motor reversal DP ${dp} value = ${dataValue}")    // isMoesCoverSwitch()
             break
         
-        case 0x09: // for unknown curtain motors : Left time (Display the remaining time of the countdown) {“unit”:“s”,“min”:0,“max”:86400,“scale”:0,“step”:1,“type” :“value”}
+        case 0x09:      // for unknown curtain motors : Left time (Display the remaining time of the countdown) {“unit”:“s”,“min”:0,“max”:86400,“scale”:0,“step”:1,“type” :“value”}
             logDebug("parse (09): Moes motor reversal DP ${dp} value = ${dataValue}")
             break
         
-        case 0x0B : // (11) situation_set - enum ["fully_open", "fully_close"]
+        case 0x0B :     // (11) situation_set - enum ["fully_open", "fully_close"]
             logDebug("parse (11): isZM85EL=${isZM85EL()} situation_set = ${ZM85EL_SITUATION_SET[dataValue as int]} (value = ${dataValue})")
             break
         
-        case 0x0C : // (12) fault - 	Bitmap	
+        case 0x0C :     // (12) fault -     Bitmap    
             logDebug("parse (12): fault code (DP ${dp}) value = ${dataValue}")
             break
-		
-        case DP_ID_BATTERY: // 0xOD (13) Battery
-			if (dataValue >= 0 && dataValue <= 100) {
-				logDebug("parse (13): battery=${dataValue}")
-				updateBattery(dataValue)
-			} else {
-				logWarn "parse (13): Unexpected DP_ID_BATTERY dataValue=${dataValue}"
-			}
-			break
         
-        case 0x0E : // (14) indicator light status for Moes Curtain switch ? {“range”:[“relay”,“pos”,“none”],“type”:“enum”}
+        case 0x0D :     // (13) DP_ID_BATTERY:  Battery
+            if (dataValue >= 0 && dataValue <= 100) {
+                logDebug("parse (13): battery=${dataValue}")
+                updateBattery(dataValue)
+            } else {
+                logWarn "parse (13): Unexpected DP_ID_BATTERY dataValue=${dataValue}"
+            }
+            break
+        
+        case 0x0E :     // (14) indicator light status for Moes Curtain switch ? {“range”:[“relay”,“pos”,“none”],“type”:“enum”}
             logDebug  "parse (14): indicator light status for Moes Curtain switch value = ${dataValue}"
             break
         
-        case 0x10 : // (16) ZM85EL_BORDER 
+        case 0x10 :     // (16) ZM85EL_BORDER 
             logDebug("parse (16): isZM85EL=${isZM85EL()} BORDER = ${ZM85EL_BORDER[dataValue as int]} (value = ${dataValue})")
             break
         
-        case 0x13 : // (19) position_best - Integer	(0..100)
+        case 0x13 :     // (19) position_best - Integer    (0..100)
             logDebug("parse (19): position_best (DP ${dp}) value = ${dataValue}")
             break
-		
-        case 0x14 : // (20) click_control (2)	Enum	 ["up", "down"]
+        
+        case 0x14 :     // (20) click_control (2)    Enum     ["up", "down"]
             logDebug("parse (20): isZM85EL=${isZM85EL()} click_control = ${ZM85EL_CLICK_CONTROL[dataValue as int]} (value = ${dataValue})")
             break
         
-		case DP_ID_MODE: // 0x65 Mode
-			def modeText = MODE_MAP[dataValue]
-			if (modeText != null) {
-				logDebug("parse (101): mode=${modeText}")
-				updateMode(dataValue)
-			} else {
-				logWarn "parse: Unexpected DP_ID_MODE dataValue=${dataValue}"
-			}
-			break
-        
-        case 0x67 :      // (103) ZM25TQ UP limit (when direction is Forward; probably reversed in Backward direction?)
-            logDebug("parse (103): ZM25TQ Up limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
+        case 0x65 :     // (101) DP_ID_MODE:    //  enum 0: tilt , 1: lift
+            def modeText = MODE_MAP[dataValue]
+            if (modeText != null) {
+                logDebug("parse (101): mode=${modeText}")
+                updateMode(dataValue)
+            } else {
+                logWarn "parse: Unexpected DP_ID_MODE dataValue=${dataValue}"
+            }
+            break
+
+        case 0x66 :     // (102) AM43 factory reset
+            logDebug("parse (102): AM43 factory reset")
             break
         
-        case 0x68 :      // (104) ZM25TQ Middle limit
-            logDebug("parse (104): ZM25TQ Middle limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
+        case 0x67 :      // (103) ZM25TQ UP limit (when direction is Forward; probably reversed in Backward direction?) // AM43 'set_upper_limit'
+            logDebug("parse (103): ZM25TQ/AM43 Up limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction}) (raw:${dataValue})")
             break
-		
-		case DP_ID_SPEED: // (105) 0x69 Motor speed or ZM25TQ Down limit
+        
+        case 0x68 :      // (104) ZM25TQ Middle limit   // AM43 'set_bottom_limit'
+            logDebug("parse (104): ZM25TQ Middle / AM43 bottom limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction}) (raw:${dataValue})")
+            break
+        
+        case 0x69 :     // (105) DP_ID_SPEED: // Motor speed or ZM25TQ Down limit   // AM43 motor_speed
             if (isZM25TQ()) {
                 logDebug("parse (105): ZM25TQ Down limit was ${dataValue==0?'reset':'set'} (direction:${settings.direction})")
             }
-            else {
-    			if (dataValue >= 0 && dataValue <= 100) {
-    				logDebug("parse (105): speed=${dataValue}")
-    				updateSpeed(dataValue)
-    			} else {
-    				logWarn "parse (105): Unexpected DP_ID_SPEED dataValue=${dataValue}"
-    			}
+            else {      // Motor speed for AM43
+                if (dataValue >= 0 && dataValue <= 100) {
+                    logDebug("parse (105): speed=${dataValue}")
+                    updateSpeed(dataValue)
+                } else {
+                    logWarn "parse (105): Unexpected DP_ID_SPEED dataValue=${dataValue}"
+                }
             }
-			break
+            break
         
         case 0x6A: // 106
             logDebug("parse (106): ZM25TQ motor mode (DP=${dp}) value = ${dataValue}")
             break
-			
-		default:
-			logWarn "parse: Unknown DP_ID dp=0x${data[2]}, dataType=0x${data[3]} dataValue=${dataValue}"
-			break
-	}
+            
+        default:
+            logWarn "parse: Unknown DP_ID dp=0x${data[2]}, dataType=0x${data[3]} dataValue=${dataValue}"
+            break
+    }
 }
 
 def processTuyaSetTime() {
@@ -708,109 +699,109 @@ def processTuyaSetTime() {
 }
 
 private ignorePositionReport(position) {
-	def lastPosition = device.currentValue("position") ?: "undefined"
-	logDebug("ignorePositionReport: position=${position}, lastPosition=${lastPosition}")
-	if (lastPosition == "undefined" || isWithinOne(position)) {
-		logDebug "Ignore invalid reports"
-		return true
-	}
-	return false
+    def lastPosition = device.currentValue("position") ?: "undefined"
+    logDebug("ignorePositionReport: position=${position}, lastPosition=${lastPosition}")
+    if (lastPosition == "undefined" || isWithinOne(position)) {
+        logDebug "Ignore invalid reports"
+        return true
+    }
+    return false
 }
 
 private isWithinOne(position) {
-	def lastPosition = device.currentValue("position") ?: "undefined"
-	if (lastPosition != "undefined" && Math.abs(position - lastPosition) <= 1) {
-    	logDebug "isWithinOne:true (position=${position}, lastPosition=${lastPosition})"
-		return true
-	}
- 	logDebug "isWithinOne:false (position=${position}, lastPosition=${lastPosition})"
-	return false
+    def lastPosition = device.currentValue("position") ?: "undefined"
+    if (lastPosition != "undefined" && Math.abs(position - lastPosition) <= 1) {
+        logDebug "isWithinOne:true (position=${position}, lastPosition=${lastPosition})"
+        return true
+    }
+     logDebug "isWithinOne:false (position=${position}, lastPosition=${lastPosition})"
+    return false
 }
 
 private updateDirection(directionValue) {
-	def directionText = DIRECTION_MAP[directionValue]
-	logDebug("updateDirection: directionText=${directionText}, directionValue=${directionValue}")
-	if (directionValue != (direction as int)) {
-		setDirection()
-	}
+    def directionText = DIRECTION_MAP[directionValue]
+    logDebug("updateDirection: directionText=${directionText}, directionValue=${directionValue}")
+    if (directionValue != (direction as int)) {
+        setDirection()
+    }
 }
 
 private updateMode(modeValue) {
-	def modeText = MODE_MAP[modeValue]
-	logDebug("updateMode: modeText=${modeText}, modeValue=${modeValue}")
-	if (modeValue != (mode as int)) {
-		setMode()
-	}
+    def modeText = MODE_MAP[modeValue]
+    logDebug("updateMode: modeText=${modeText}, modeValue=${modeValue}")
+    if (modeValue != (mode as int)) {
+        setMode()
+    }
 }
 
 private updatePosition( position ) {
-	logDebug "updatePosition(): position=${position}"
-	sendEvent(name: "position", value: position, unit: "%")
-	sendEvent(name: "level", value: position, unit: "%")
+    logDebug "updatePosition(): position=${position}"
+    sendEvent(name: "position", value: position, unit: "%")
+    sendEvent(name: "level", value: position, unit: "%")
     if (position <= maxClosedPosition) {
-    	sendEvent(name:"switch", value: "off")
+        sendEvent(name:"switch", value: "off")
     }
     else {
-    	sendEvent(name:"switch", value: "on")
+        sendEvent(name:"switch", value: "on")
     }
-	if (isWithinOne(position)) {
+    if (isWithinOne(position)) {
         logDebug "updatePosition(${position}): <b>arrived!</b>"
         updateWindowShadeArrived(position)
         stopPositionReportTimeout()    // added 12/30/2022
-	}    
+    }    
 }
 
 private updatePresence(present) {
-	//logDebug "updatePresence: present=${present}"
-	if (present) {
-		state.lastHeardMillis = now()
-		checkHeartbeat()
-	}
-	state.waitingForResponseSinceMillis = null
-	sendEvent(name: "presence", value: present ? "present" : "not present")
+    //logDebug "updatePresence: present=${present}"
+    if (present) {
+        state.lastHeardMillis = now()
+        checkHeartbeat()
+    }
+    state.waitingForResponseSinceMillis = null
+    sendEvent(name: "presence", value: present ? "present" : "not present")
 }
 
 private updateSpeed(speed) {
-	logDebug("updateSpeed: speed=${speed}")
-	sendEvent(name: "speed", value: speed)
+    logDebug("updateSpeed: speed=${speed}")
+    sendEvent(name: "speed", value: speed)
 }
 
 private updateBattery(battery) {
-	logInfo("battery is ${battery} %")
-	sendEvent(name: "battery", value: battery)
+    logInfo("battery is ${battery} %")
+    sendEvent(name: "battery", value: battery)
 }
 
 private updateWindowShadeMoving(position) {
-	def lastPosition = device.currentValue("position") ?: 0
+    def lastPosition = device.currentValue("position") ?: 0
     logDebug("updateWindowShadeMoving: position=${position} (lastPosition=${lastPosition}), target=${state.target}")
 
-	if (lastPosition < position) {
-		updateWindowShadeOpening()
-	} else if (lastPosition > position) {
-		updateWindowShadeClosing()
-	}
+    if (lastPosition < position) {
+        updateWindowShadeOpening()
+    } else if (lastPosition > position) {
+        updateWindowShadeClosing()
+    }
 }
 
 private updateWindowShadeOpening() {
-	logDebug "updateWindowShadeOpening()"
+    logDebug "updateWindowShadeOpening()"
     if ((device.currentValue("windowShade") ?: "undefined") != "opening") {
-	    sendEvent(name:"windowShade", value: "opening")
+        sendEvent(name:"windowShade", value: "opening")
         logInfo "is opening"
     }
 }
 
 private updateWindowShadeClosing() {
-	logDebug "updateWindowShadeClosing()"
+    logDebug "updateWindowShadeClosing()"
     if ((device.currentValue("windowShade") ?: "undefined") != "closing") {
-    	sendEvent(name:"windowShade", value: "closing")
+        sendEvent(name:"windowShade", value: "closing")
         logInfo "is closing"
     }
 }
 
 private updateWindowShadeUndefined() {
-	logDebug "updateWindowShadeUndefined()"
+    logDebug "updateWindowShadeUndefined()"
     if ((device.currentValue("windowShade") ?: "undefined") != "moving") {
-	    sendEvent(name:"windowShade", value: "moving")
+        sendEvent(name:"windowShade", value: "moving")
         logInfo "is moving"
     }
 }
@@ -820,30 +811,30 @@ private updateWindowShadeArrived( position=null ) {
     if (position == null)  {
         position = device.currentValue("position") ?: "undefined"
     }
-	logDebug("updateWindowShadeArrived: position=${position}")
-	if (position == null || position < 0 || position > 100) {
-		logWarn "updateWindowShadeArrived: Need to setup limits on device"
-		sendEvent(name: "windowShade", value: "unknown")
+    logDebug("updateWindowShadeArrived: position=${position}")
+    if (position == null || position < 0 || position > 100) {
+        logWarn "updateWindowShadeArrived: Need to setup limits on device"
+        sendEvent(name: "windowShade", value: "unknown")
         logInfo "windowShade is unknown"
         stopPositionReportTimeout()    // added 12/30/2022
-	} else if (position <= maxClosedPosition) {
+    } else if (position <= maxClosedPosition) {
         if ((device.currentValue("windowShade") ?: "undefined") != "closed") {
-    		sendEvent(name: "windowShade", value: "closed")
+            sendEvent(name: "windowShade", value: "closed")
             logInfo "is closed"
             stopPositionReportTimeout()    // added 12/30/2022
         }
-	} else if (position >= minOpenPosition) {
+    } else if (position >= minOpenPosition) {
         if ((device.currentValue("windowShade") ?: "undefined") != "open") {
-    		sendEvent(name: "windowShade", value: "open")
+            sendEvent(name: "windowShade", value: "open")
             logInfo "is open"
             stopPositionReportTimeout()    // added 12/30/2022
         }
-	} else {
+    } else {
         if ((device.currentValue("windowShade") ?: "undefined") != "partially open") {
-		    sendEvent(name: "windowShade", value: "partially open")
+            sendEvent(name: "windowShade", value: "partially open")
             logInfo "is partially open ${position}%"
         }
-	}
+    }
 }
 
 //
@@ -852,15 +843,15 @@ private updateWindowShadeArrived( position=null ) {
 
 def refresh()
 {
-	logDebug "Refresh called..."
-	zigbee.onOffRefresh()
+    logDebug "Refresh called..."
+    zigbee.onOffRefresh()
 }
 
 def close() {
-	if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
+    if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
         logDebug("sending command close ${settings?.substituteOpenClose == true ? 'substituted with setPosition(0)' : 'MODE_TILT'} ")
-		setPosition(0)
-	} 
+        setPosition(0)
+    } 
     else {
         state.target = 0
         state.isTargetRcvd = true 
@@ -872,20 +863,20 @@ def close() {
         }
         else if (isZM85EL()) {    // situation_set
             //sendTuyaCommand(0x0B, DP_TYPE_ENUM, 0x01, 2)
-    		setPosition(0)
+            setPosition(0)
             //sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, 2, 2)
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandClose, 2)
         }
-	}
+    }
 }
 
 def open() {
-	if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
+    if (mode == MODE_TILT || settings?.substituteOpenClose == true) {
         logDebug "sending command open : ${settings?.substituteOpenClose == true ? 'substituted with setPosition(100)' : 'MODE_TILT'} "
-		setPosition(100)
-	} 
+        setPosition(100)
+    } 
     else {
         state.target = 100
         state.isTargetRcvd = true 
@@ -897,13 +888,13 @@ def open() {
         }
         else if (isZM85EL()) {    // situation_set ?
             //sendTuyaCommand(0x0B, DP_TYPE_ENUM, 0x00, 2)
-    		setPosition(100)
+            setPosition(100)
             //sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, 0, 2)
         }
         else {
             sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, dpCommandOpen, 2)
         }
-	}
+    }
 }
 
 def on() {
@@ -916,16 +907,16 @@ def off() {
 
 def startPositionChange(state) {
     logDebug("startPositionChange: ${state}")
-	switch (state) {
-		case "close" :
-			close()
-			break
-		case "open" :
-			open()
-			break
-		default :
-			throw new Exception("Unsupported startPositionChange state \"${state}\"")
-	}
+    switch (state) {
+        case "close" :
+            close()
+            break
+        case "open" :
+            open()
+            break
+        default :
+            throw new Exception("Unsupported startPositionChange state \"${state}\"")
+    }
 }
 
 def stopPositionChange() {
@@ -946,18 +937,18 @@ def setLevel( level, duration = null )
 }
 
 def setPosition( position ) {
-	if (position == null || position < 0 || position > 100) {
-		throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
-	}
+    if (position == null || position < 0 || position > 100) {
+        throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
+    }
     state.target = position
-	if (isWithinOne(position)) {
-	    // Motor is off by one sometimes, so set it to desired value if within one
-	    //	sendEvent(name: "position", value: position)
+    if (isWithinOne(position)) {
+        // Motor is off by one sometimes, so set it to desired value if within one
+        //    sendEvent(name: "position", value: position)
         logDebug("setPosition: no need to move!")
         updateWindowShadeArrived(position)
         state.isTargetRcvd = false 
         return null
-	}
+    }
     updateWindowShadeMoving( position )
     logDebug("setPosition: target is ${position}, currentPosition=${device.currentValue('position')}")
     if ( invertPosition == true ) {
@@ -965,7 +956,7 @@ def setPosition( position ) {
     }
     restartPositionReportTimeout()
     state.isTargetRcvd = false 
-	sendTuyaCommand(DP_ID_TARGET_POSITION, DP_TYPE_VALUE, position.intValue(), 8)
+    sendTuyaCommand(DP_ID_TARGET_POSITION, DP_TYPE_VALUE, position.intValue(), 8)
 }
 
 def restartPositionReportTimeout() {
@@ -988,10 +979,10 @@ def stepClose(step) {
         setZM85ClickControlDown()
     }
     else {
-    	if (!step) {
-    		step = defaultStepAmount
-    	}
-    	stepOpen(-step)
+        if (!step) {
+            step = defaultStepAmount
+        }
+        stepOpen(-step)
     }
 }
 
@@ -1000,50 +991,50 @@ def stepOpen(step) {
         setZM85ClickControlUp()
     }
     else {
-    	logDebug("stepOpen: step=${step}")
-    	if (!step) {
-    		step = defaultStepAmount
-    	}
-    	setPosition(Math.max( 0, Math.min(100, (device.currentValue("position") + step) as int)))
+        logDebug("stepOpen: step=${step}")
+        if (!step) {
+            step = defaultStepAmount
+        }
+        setPosition(Math.max( 0, Math.min(100, (device.currentValue("position") + step) as int)))
     }
 }
 
 
 def setSpeed(speed) {
-	logDebug("setSpeed: speed=${speed}")
-	if (speed < 0 || speed > 100) {
-		throw new Exception("Invalid speed ${speed}. Speed must be between 0 and 100 inclusive.")
-	}
-	sendTuyaCommand(DP_ID_SPEED, DP_TYPE_ENUM, speed.intValue(), 8)
+    logDebug("setSpeed: speed=${speed}")
+    if (speed < 0 || speed > 100) {
+        throw new Exception("Invalid speed ${speed}. Speed must be between 0 and 100 inclusive.")
+    }
+    sendTuyaCommand(DP_ID_SPEED, DP_TYPE_ENUM, speed.intValue(), 8)
 }
 
-def push(buttonNumber)		{
-	logDebug "push: buttonNumber=${buttonNumber}"
-	sendEvent(name: "pushed", value: buttonNumber, isStateChange: true)
-	switch(buttonNumber) {
-		case 1:
-			open()
-			break
-		case 2:
-			close()
-			break
-		case 3:
-			stopPositionChange()
-			break
-		case 4:
-			stepOpen()
-			break
-		case 5:
-			stepClose()
-			break
-		default:
-			throw new Exception("Unsupported buttonNumber \"${buttonNumber}\"")
-	}
+def push(buttonNumber)        {
+    logDebug "push: buttonNumber=${buttonNumber}"
+    sendEvent(name: "pushed", value: buttonNumber, isStateChange: true)
+    switch(buttonNumber) {
+        case 1:
+            open()
+            break
+        case 2:
+            close()
+            break
+        case 3:
+            stopPositionChange()
+            break
+        case 4:
+            stepOpen()
+            break
+        case 5:
+            stepClose()
+            break
+        default:
+            throw new Exception("Unsupported buttonNumber \"${buttonNumber}\"")
+    }
 }
 
 // scheduled from restartPositionReportTimeout()
 def endOfMovement() {
-	logWarn "endOfMovement() timeout!"
+    logWarn "endOfMovement() timeout!"
     updateWindowShadeArrived(device.currentValue("position", true))
 }
 
@@ -1052,98 +1043,80 @@ def endOfMovement() {
 //
 
 private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
-	state.waitingForResponseSinceMillis = now()
-	checkForResponse()
+    state.waitingForResponseSinceMillis = now()
+    checkForResponse()
     
-	def dpHex = zigbee.convertToHexString(dp, 2)
-	def dpTypeHex = zigbee.convertToHexString(dpType, 2)
-	def fnCmdHex = zigbee.convertToHexString(fnCmd, fnCmdLength)
-	logDebug "sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}"
-	def message = (randomPacketId().toString()
-				   + dpHex
-				   + dpTypeHex
-				   + zigbee.convertToHexString((fnCmdLength / 2) as int, 4)
-				   + fnCmdHex)
-	zigbee.command(CLUSTER_TUYA, ZIGBEE_COMMAND_SET_DATA, message)
+    def dpHex = zigbee.convertToHexString(dp, 2)
+    def dpTypeHex = zigbee.convertToHexString(dpType, 2)
+    def fnCmdHex = zigbee.convertToHexString(fnCmd, fnCmdLength)
+    logDebug "sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}"
+    def message = (randomPacketId().toString()
+                   + dpHex
+                   + dpTypeHex
+                   + zigbee.convertToHexString((fnCmdLength / 2) as int, 4)
+                   + fnCmdHex)
+    zigbee.command(CLUSTER_TUYA, ZIGBEE_COMMAND_SET_DATA, message)
 }
 
 private randomPacketId() {
-	return zigbee.convertToHexString(new Random().nextInt(65536), 4)
+    return zigbee.convertToHexString(new Random().nextInt(65536), 4)
 }
 
 // Must be non-private to use runInMillis
 def checkForResponse() {
-	//logDebug "checkForResponse: waitingForResponseSinceMillis=${state.waitingForResponseSinceMillis}"
-	if (state.waitingForResponseSinceMillis == null) {
-		return null
-	}
-	def waitMillis = (CHECK_FOR_RESPONSE_INTERVAL_SECONDS * 1000
-			- (now() - state.waitingForResponseSinceMillis))
-	//logDebug "checkForResponse: waitMillis=${waitMillis}"
-	if (waitMillis <= 0) {
-		updatePresence(false)
-	} else {
-		runInMillis(waitMillis, checkForResponse, [overwrite: true])
-	}
+    //logDebug "checkForResponse: waitingForResponseSinceMillis=${state.waitingForResponseSinceMillis}"
+    if (state.waitingForResponseSinceMillis == null) {
+        return null
+    }
+    def waitMillis = (CHECK_FOR_RESPONSE_INTERVAL_SECONDS * 1000
+            - (now() - state.waitingForResponseSinceMillis))
+    //logDebug "checkForResponse: waitMillis=${waitMillis}"
+    if (waitMillis <= 0) {
+        updatePresence(false)
+    } else {
+        runInMillis(waitMillis, checkForResponse, [overwrite: true])
+    }
 }
 
 // Must be non-private to use runInMillis
 def checkHeartbeat() {
-	def waitMillis = (HEARTBEAT_INTERVAL_SECONDS * 1000
-			- (now() - state.lastHeardMillis))
-	//logDebug "checkHeartbeat: waitMillis=${waitMillis}"
-	if (waitMillis <= 0) {
-		updatePresence(false)
-	} else {
-		runInMillis(waitMillis, checkHeartbeat, [overwrite: true])
-	}
+    def waitMillis = (HEARTBEAT_INTERVAL_SECONDS * 1000
+            - (now() - state.lastHeardMillis))
+    //logDebug "checkHeartbeat: waitMillis=${waitMillis}"
+    if (waitMillis <= 0) {
+        updatePresence(false)
+    } else {
+        runInMillis(waitMillis, checkHeartbeat, [overwrite: true])
+    }
 }
 
 private logInfo(text) {
-	if (!enableInfoLog) {
-		return
-	}
-	log.info "${device.displayName} " + text
+    if (!enableInfoLog) {
+        return
+    }
+    log.info "${device.displayName} " + text
 }
 
 private logDebug(text) {
-	if (!enableDebugLog) {
-		return
-	}
-	log.debug "${device.displayName} " + text
+    if (!enableDebugLog) {
+        return
+    }
+    log.debug "${device.displayName} " + text
 }
-
-/*
-private logTrace(text) {
-	if (!enableTraceLog) {
-		return
-	}
-	log.trace"${device.displayName} " + text
-}
-*/
 
 private logWarn(text) {
-	if (!enableDebugLog) {
-		return
-	}
-	log.warn "${device.displayName} " + text
+    if (!enableDebugLog) {
+        return
+    }
+    log.warn "${device.displayName} " + text
 }
-
-/*
-private logUnexpectedMessage(text) {
-	if (!enableUnexpectedMessageLog) {
-		return
-	}
-	log.warn "${device.displayName} " + text
-}
-*/
 
 Integer safeToInt(val, Integer defaultVal=0) {
-	return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
+    return "${val}"?.isInteger() ? "${val}".toInteger() : defaultVal
 }
 
 Double safeToDouble(val, Double defaultVal=0.0) {
-	return "${val}"?.isDouble() ? "${val}".toDouble() : defaultVal
+    return "${val}"?.isDouble() ? "${val}".toDouble() : defaultVal
 }
 
 void sendZigbeeCommands(ArrayList<String> cmd) {
