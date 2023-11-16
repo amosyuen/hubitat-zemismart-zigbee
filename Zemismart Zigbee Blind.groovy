@@ -38,11 +38,11 @@
  * 3.2.3 (2022-09-22) [kkossev]   - _TZE200_zpzndjez inClusters correction; secure updateWindowShadeArrived() for null values;
  * 3.2.4 (2022-12-02) [kkossev]   - added _TZE200_7eue9vhc ZM25RX-0.8/30; _TZE200_fdtjuw7u _TZE200_r0jdjrvi _TZE200_bqcqqjpb
  * 3.2.5 (2022-12-12) [kkossev]   - _TZE200_fzo2pocs new device version fingerprint ; added _TZE200_udank5zs; secured code for missing 'windowShade' state; unscheduling of old periodic tasks; _TZE200_7eue9vhc not inverted
- *
  * 3.3.0 (2022-12-30) [kkossev]   - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; ZM85 _TZE200_cf1sl3tj support, including calibration;
  * 3.3.1 (2023-03-09) [kkossev]   - added _TZE200_hsgrhjpf
  * 3.3.2 (2023-08-10) [kkossev]   - replaced some warnings with debug level logs; removed 'enable trace logging' and 'log Unexpected Messages' options;
  * 3.3.3 (2023-10-20) [kkossev]   - _TZE200_zah67ekd checks; code reformatting; 
+ * 3.3.4 (2023-11-16) [kkossev]   - (dev.banch) added _TZE200_cxu0jkjk (AM02)
  *
  *
  *                                TODO: TS130F _TZ3000_1dd0d5yi
@@ -55,7 +55,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-    return "3.3.3 - 2023-10-20 8:36 PM"
+    return "3.3.4 - 2023-11-16 11:03 AM"
 }
 
 private def textCopyright() {
@@ -112,13 +112,15 @@ metadata {
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_fzo2pocs" ,deviceJoinName: "Motorized Window Opener"           // app. version 53 //https://www.aliexpress.com/item/1005004251482469.html
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,000A,0004,0005,EF00", outClusters:"0019", model:"TS0601", manufacturer:"_TZE200_4vobcgd3" ,deviceJoinName: "Zemismart Zigbee Tubular motor"    // onClusters may be wrong
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_5zbp6j0u" ,deviceJoinName: "Tuya Zigbee Curtain Motor"
-        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_rmymn92d" ,deviceJoinName: "Tuya Zigbee Curtain Motor"        // inverted reporting
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_rmymn92d" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // inverted reporting
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_nogaemzt" ,deviceJoinName: "Tuya Zigbee Curtain Motor"
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_7eue9vhc" ,deviceJoinName: "Zemismart Zigbee Rechargable Roller Motor"    // ZM25RX-0.8/30 inverted reporting?
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_fdtjuw7u" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_r0jdjrvi" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_bqcqqjpb" ,deviceJoinName: "Tuya Zigbee Curtain Motor"         // not tested
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_udank5zs" ,deviceJoinName: "Motorized Window Opener"           // similar to _TZE200_fzo2pocs
+        fingerprint profileId:"0104", endpointId:"01", inClusters:"0000,0004,0005,EF00", outClusters:"0019,000A", model:"TS0601", manufacturer:"_TZE200_cxu0jkjk" ,deviceJoinName: "Tuya Zigbee AM02 motor"            // https://community.hubitat.com/t/window-roller-shutter-blinds-with-hubitat/125954/10?u=kkossev
+
         //
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_zirycpws" ,deviceJoinName: "Zigbee Curtain Module QS-Zigbee-CP03"    // https://www.aliexpress.com/item/1005003697194481.html
         fingerprint profileId:"0104", endpointId:"01", inClusters:"0004,0005,0006,0102,0000", outClusters:"0019,000A", model:"TS130F", manufacturer:"_TZ3000_1dd0d5yi" ,deviceJoinName: "Zigbee Curtain Module"        // not tested
@@ -178,6 +180,7 @@ def getModel() { settings?.forcedTS130F == true ? "TS130F" : device.getDataValue
 def isTS130F() { getModel() == "TS130F" }
 def isZM85EL() { device.getDataValue("manufacturer") in ["_TZE200_cf1sl3tj"] }
 def isAM43()   { device.getDataValue("manufacturer") in ["_TZE200_zah67ekd"] }
+def isAM02()   { device.getDataValue("manufacturer") in ["_TZE200_iossyxra", "_TZE200_cxu0jkjk"] }
 
 def isCurtainMotor() {
     def manufacturer = device.getDataValue("manufacturer")
