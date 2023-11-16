@@ -42,7 +42,7 @@
  * 3.3.0 (2022-12-30) [kkossev]   - TS130F Curtain Modules support;  _TZE200_nhyj64w2 Touch Curtain Switch - moesCalibraion; ZM85 _TZE200_cf1sl3tj support, including calibration;
  * 3.3.1 (2023-03-09) [kkossev]   - added _TZE200_hsgrhjpf
  * 3.3.2 (2023-08-10) [kkossev]   - replaced some warnings with debug level logs; removed 'enable trace logging' and 'log Unexpected Messages' options;
- * 3.3.3 (2023-10-20) [kkossev]   - (dev. branch) _TZE200_zah67ekd checks; code reformatting; 
+ * 3.3.3 (2023-10-20) [kkossev]   - _TZE200_zah67ekd checks; code reformatting; 
  *
  *
  *                                TODO: TS130F _TZ3000_1dd0d5yi
