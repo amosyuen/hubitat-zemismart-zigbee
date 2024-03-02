@@ -1,7 +1,5 @@
 /* groovylint-disable CompileStatic, CouldBeElvis, CouldBeSwitchStatement, DuplicateMapLiteral, DuplicateNumberLiteral, DuplicateStringLiteral, ImplicitClosureParameter, InsecureRandom, LineLength, MethodCount, MethodSize, PublicMethodsBeforeNonPublicMethods, SpaceAroundOperator, ThrowException, UnnecessaryGetter, UnnecessarySetter */
 /**
- *  Copyright 2021, 2022
- *
  *    Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *    in compliance with the License. You may obtain a copy of the License at:
  *
@@ -44,10 +42,8 @@
  * 3.3.2 (2023-08-10) [kkossev]   - replaced some warnings with debug level logs; removed 'enable trace logging' and 'log Unexpected Messages' options;
  * 3.3.3 (2023-10-20) [kkossev]   - _TZE200_zah67ekd checks; code reformatting;
  * 3.3.4 (2023-12-13) [kkossev]   - (dev.banch) added _TZE200_cxu0jkjk (AM02); _TZE200_nv6nxo0c
- * 3.4.0 (2024-03-02) [kkossev]   - (dev.banch) Groovy lint; added targetPosition attribute; minor bug fixes;
+ * 3.4.0 (2024-03-02) [kkossev]   - (dev.banch) Groovy lint; added targetPosition attribute; minor bug fixes; added _TZE200_gaj531w3; POSITION_UPDATE_TIMEOUT default value changed to 15 seconds;
  *
- *                                TODO: TS0601 _TZE200_68nvbio9 is broken??
- *                                TODO: TS130F _TZ3000_1dd0d5yi
  *                                TODO: evaluate whether adding retries for setPos is possible : https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525/371?u=kkossev
  */
 
@@ -57,14 +53,14 @@ import groovy.transform.Field
 import hubitat.zigbee.zcl.DataType
 
 private String textVersion() {
-    return '3.4.0 - 2024-03-02 4:27 PM'
+    return '3.4.0 - 2024-03-02 8:10 PM'
 }
 
 private String textCopyright() {
     return 'Copyright ©2021-2024\nAmos Yuen, kkossev, iquix, ShinJjang'
 }
 
-@Field static final Boolean _DEBUG = true
+@Field static final Boolean _DEBUG = false
 
 metadata {
     definition(name: 'ZemiSmart Zigbee Blind', namespace: 'amosyuen', author: 'Amos Yuen', importUrl: 'https://raw.githubusercontent.com/amosyuen/hubitat-zemismart-zigbee/development/Zemismart%20Zigbee%20Blind.groovy', singleThreaded: true ) {
@@ -125,6 +121,7 @@ metadata {
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_nogaemzt' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_7eue9vhc' ,deviceJoinName: 'Zemismart Zigbee Rechargable Roller Motor'    // ZM25RX-0.8/30 inverted reporting?
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_fdtjuw7u' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_gaj531w3' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_r0jdjrvi' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_bqcqqjpb' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_udank5zs' ,deviceJoinName: 'Motorized Window Opener'           // similar to _TZE200_fzo2pocs
@@ -136,17 +133,17 @@ metadata {
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_n1aauwb4' ,deviceJoinName: 'Tuya Zigbee Blind Motor'           // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_xu4a5rhj' ,deviceJoinName: 'Tuya Zigbee Blind Motor'           // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE204_r0jdjrvi' ,deviceJoinName: 'Tuya Zigbee Blind Motor'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_g5wdnuow' ,deviceJoinName: 'Tuya Zigbee Window Pusher'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_pw7mji0l' ,deviceJoinName: 'Tuya Zigbee Roller Blinds'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_feolm6rk' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_nkoabg8w' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_pk0sfzvr' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE204_guvc7pdy' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_ol5jlkkr' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'           // not tested
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_b2u1drdv' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'           // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_g5wdnuow' ,deviceJoinName: 'Tuya Zigbee Window Pusher'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_pw7mji0l' ,deviceJoinName: 'Tuya Zigbee Roller Blinds'         // https://community.hubitat.com/t/zemismart-set-level-position/129242?u=kkossev
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_feolm6rk' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_nkoabg8w' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_pk0sfzvr' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE204_guvc7pdy' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_ol5jlkkr' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0000,0004,0005,EF00', outClusters:'0019,000A', model:'TS0601', manufacturer:'_TZE200_b2u1drdv' ,deviceJoinName: 'Tuya Zigbee Curtain Motor'         // not tested
         //
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0004,0005,0006,0102,0000', outClusters:'0019,000A', model:'TS130F', manufacturer:'_TZ3000_zirycpws' ,deviceJoinName: 'Zigbee Curtain Module QS-Zigbee-CP03'    // https://www.aliexpress.com/item/1005003697194481.html
-        fingerprint profileId:'0104', endpointId:'01', inClusters:'0004,0005,0006,0102,0000', outClusters:'0019,000A', model:'TS130F', manufacturer:'_TZ3000_1dd0d5yi' ,deviceJoinName: 'Zigbee Curtain Module'        // not tested
+        fingerprint profileId:'0104', endpointId:'01', inClusters:'0004,0005,0006,0102,0000', outClusters:'0019,000A', model:'TS130F', manufacturer:'_TZ3000_1dd0d5yi' ,deviceJoinName: 'Zigbee Curtain Module'        // https://community.hubitat.com/t/moes-smart-curtain-switch-module-ms-108zr/125260/3?u=kkossev
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0004,0005,0006,0102,0000', outClusters:'0019,000A', model:'TS130F', manufacturer:'_TZ3000_4uuaja4a' ,deviceJoinName: 'Zigbee Curtain Module'        // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0004,0005,0006,0102,0000', outClusters:'0019,000A', model:'TS130F', manufacturer:'_TZ3000_fccpjz5z' ,deviceJoinName: 'Zigbee Curtain Module'        // not tested
         fingerprint profileId:'0104', endpointId:'01', inClusters:'0004,0005,0006,0102,0000', outClusters:'0019,000A', model:'TS130F', manufacturer:'_TZ3000_vd43bbfq' ,deviceJoinName: 'Zigbee Curtain Module'        // not tested
@@ -188,7 +185,7 @@ metadata {
 @Field final List DIRECTIONS = DIRECTION_MAP*.value
 @Field final int CHECK_FOR_RESPONSE_INTERVAL_SECONDS = 60
 @Field final int HEARTBEAT_INTERVAL_SECONDS = 4000 // a little more than 1 hour
-@Field final int POSITION_UPDATE_TIMEOUT = 2500    //  in milliseconds
+@Field final int POSITION_UPDATE_TIMEOUT = 15000    //  in milliseconds
 @Field final int INVALID_POSITION = -1
 @Field final int MIN_STEP = 10
 
@@ -959,6 +956,7 @@ void stopPositionChange() {
     int dpCommandStop = getDpCommandStop()
     logDebug "sending command stopPositionChange (${dpCommandStop})"
     restartPositionReportTimeout()
+    sendEvent(name: 'targetPosition', value: '?', type: 'digital')
     if (isTS130F()) {
         sendZigbeeCommands(zigbee.command(0x0102, dpCommandStop as int, [destEndpoint:0x01], delay = 200))
     }
